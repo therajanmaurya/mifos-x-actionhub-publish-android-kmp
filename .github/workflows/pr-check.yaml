@@ -22,7 +22,7 @@ jobs:
       - name: Run actionlint on every action.yaml
         uses: docker://rhysd/actionlint:1.7.4
         with:
-          args: -color action.yaml */action.yaml
+          args: -color
 
   validate-sub-actions:
     name: Validate sub-action ${{ matrix.subdir }}

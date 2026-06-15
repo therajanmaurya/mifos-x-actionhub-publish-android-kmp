@@ -1,0 +1,126 @@
+# Sub-action: build — Compose Android build (APK + AAB)
+# Part of openMF/mifos-x-actionhub-publish-android-kmp@v2.0.0
+#
+# Lifted from openMF/mifos-x-actionhub-build-android-app@v1.0.14 with these changes:
+#   - Inputs renamed for naming consistency across this repo
+#   - Java version default raised to 17 (matches platform repo convention)
+#   - keystore decoding moved to _shared/scripts/decode-keystore.sh
+name: 'KMP Publish Android — Build (APK + AAB)'
+description: 'Compile a Compose Android module and produce APK + AAB. Used by PR checks and by Stage 1+ sub-actions.'
+author: 'Mifos Initiative'
+branding:
+  icon: 'package'
+  color: 'green'
+
+inputs:
+  android_package_name:
+    description: 'Android Gradle module name (e.g. cmp-android)'
+    required: true
+  build_type:
+    description: "Build type: 'Debug' or 'Release'"
+    required: false
+    default: 'Release'
+  java-version:
+    description: 'Java version (default: 17)'
+    required: false
+    default: '17'
+
+  # Release-build only: signing config
+  keystore_file:
+    description: 'Base64-encoded release keystore (required for build_type=Release)'
+    required: false
+  keystore_password:
+    description: 'Keystore password (required for build_type=Release)'
+    required: false
+  keystore_alias:
+    description: 'Keystore alias (required for build_type=Release)'
+    required: false
+  keystore_alias_password:
+    description: 'Keystore alias password (required for build_type=Release)'
+    required: false
+  google_services:
+    description: 'Base64-encoded google-services.json (required for build_type=Release with Firebase)'
+    required: false
+
+outputs:
+  apk_path:
+    description: 'Path to the generated APK file (debug or release)'
+    value: ${{ steps.locate-artifacts.outputs.apk_path }}
+  aab_path:
+    description: 'Path to the generated AAB file (release only)'
+    value: ${{ steps.locate-artifacts.outputs.aab_path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: zulu
+        java-version: ${{ inputs.java-version }}
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+
+    - name: Decode keystore + google-services (Release only)
+      if: ${{ inputs.build_type == 'Release' }}
+      shell: bash
+      env:
+        KEYSTORE: ${{ inputs.keystore_file }}
+        GOOGLE_SERVICES: ${{ inputs.google_services }}
+        ANDROID_PACKAGE_NAME: ${{ inputs.android_package_name }}
+      run: bash "$GITHUB_ACTION_PATH/../_shared/scripts/decode-keystore.sh"
+
+    - name: Build APK + AAB
+      shell: bash
+      env:
+        BUILD_TYPE: ${{ inputs.build_type }}
+        ANDROID_PACKAGE_NAME: ${{ inputs.android_package_name }}
+        KEYSTORE_PASSWORD: ${{ inputs.keystore_password }}
+        KEYSTORE_ALIAS: ${{ inputs.keystore_alias }}
+        KEYSTORE_ALIAS_PASSWORD: ${{ inputs.keystore_alias_password }}
+      run: |
+        set -euo pipefail
+        if [[ "$BUILD_TYPE" == "Release" ]]; then
+          ./gradlew ":$ANDROID_PACKAGE_NAME:assembleRelease" ":$ANDROID_PACKAGE_NAME:bundleRelease"
+        else
+          ./gradlew ":$ANDROID_PACKAGE_NAME:assembleDebug"
+        fi
+
+    - name: Locate build artifacts
+      id: locate-artifacts
+      shell: bash
+      env:
+        BUILD_TYPE: ${{ inputs.build_type }}
+        ANDROID_PACKAGE_NAME: ${{ inputs.android_package_name }}
+      run: |
+        set -euo pipefail
+        APK=$(find "$ANDROID_PACKAGE_NAME/build/outputs/apk" -name '*.apk' -type f | head -1 || true)
+        AAB=$(find "$ANDROID_PACKAGE_NAME/build/outputs/bundle" -name '*.aab' -type f 2>/dev/null | head -1 || true)
+        echo "apk_path=$APK" >> "$GITHUB_OUTPUT"
+        echo "aab_path=$AAB" >> "$GITHUB_OUTPUT"
+        echo "📦 APK: $APK"
+        echo "📦 AAB: $AAB"
+
+    - name: Upload APK artifact
+      if: ${{ steps.locate-artifacts.outputs.apk_path != '' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-apk
+        path: ${{ steps.locate-artifacts.outputs.apk_path }}
+
+    - name: Upload AAB artifact
+      if: ${{ steps.locate-artifacts.outputs.aab_path != '' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-aab
+        path: ${{ steps.locate-artifacts.outputs.aab_path }}
+
+    - name: Cleanup secrets
+      if: always()
+      shell: bash
+      env:
+        ANDROID_PACKAGE_NAME: ${{ inputs.android_package_name }}
+      run: |
+        rm -f keystores/release_keystore.keystore
+        rm -f "$ANDROID_PACKAGE_NAME/google-services.json"
