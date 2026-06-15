@@ -1,5 +1,9 @@
 # mifos-x-actionhub-publish-android-kmp
 
+[![Release](https://img.shields.io/github/v/release/therajanmaurya/mifos-x-actionhub-publish-android-kmp?label=release&logo=github)](https://github.com/therajanmaurya/mifos-x-actionhub-publish-android-kmp/releases/latest)
+[![PR Check](https://github.com/therajanmaurya/mifos-x-actionhub-publish-android-kmp/actions/workflows/pr-check.yaml/badge.svg)](https://github.com/therajanmaurya/mifos-x-actionhub-publish-android-kmp/actions/workflows/pr-check.yaml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
+
 > Composite GitHub Actions for KMP Android: **build + Firebase Distribution + Play Store ladder (Internal → Beta → Production)**. Part of the [`openMF/mifos-x-actionhub`](https://github.com/openMF/mifos-x-actionhub) constellation.
 
 ## What this provides
