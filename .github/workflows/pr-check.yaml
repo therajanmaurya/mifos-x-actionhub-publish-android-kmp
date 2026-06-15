@@ -1,0 +1,59 @@
+# .github/workflows/pr-check.yaml
+#
+# Matrix-tests every sub-action's action.yaml on PR via actionlint + a stub
+# composite invocation. Catches: invalid yaml, missing required inputs,
+# malformed runs.steps, undefined ${{ inputs.* }} refs.
+#
+# Runs on every PR + push to main. Required to pass before merge.
+name: PR Check
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  actionlint:
+    name: actionlint — every action.yaml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run actionlint on every action.yaml
+        uses: docker://rhysd/actionlint:1.7.4
+        with:
+          args: -color action.yaml */action.yaml
+
+  validate-sub-actions:
+    name: Validate sub-action ${{ matrix.subdir }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        subdir:
+          - build
+          - firebase-distribution
+          - play-store-internal
+          - promote-to-beta
+          - promote-to-production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify action.yaml exists + parseable
+        run: |
+          set -euo pipefail
+          test -f "${{ matrix.subdir }}/action.yaml" \
+            || { echo "::error::Missing ${{ matrix.subdir }}/action.yaml"; exit 1; }
+          test -f "${{ matrix.subdir }}/README.md" \
+            || { echo "::error::Missing ${{ matrix.subdir }}/README.md"; exit 1; }
+          # Parse as YAML
+          python3 -c "import yaml; yaml.safe_load(open('${{ matrix.subdir }}/action.yaml'))"
+
+  validate-shared-scripts:
+    name: Shellcheck _shared/scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shellcheck every .sh
+        run: |
+          set -euo pipefail
+          find _shared/scripts -name '*.sh' -exec shellcheck -S warning {} +

@@ -1,0 +1,85 @@
+# Sub-action: play-store-internal — Stage 1 (Play Internal track)
+# Part of openMF/mifos-x-actionhub-publish-android-kmp@v2.0.0
+#
+# Split from openMF/mifos-x-actionhub-publish-android-on-playstore-beta@v1.0.14
+# (the legacy action took a release_type=internal|beta input; we split into two
+# separate sub-actions for explicit ladder semantics + per-rung approval gates).
+name: 'KMP Publish Android — Play Store Internal (Stage 1)'
+description: 'Build AAB + upload to Google Play Internal testing track.'
+author: 'Mifos Initiative'
+branding:
+  icon: 'upload'
+  color: 'blue'
+
+inputs:
+  android_package_name:
+    required: true
+    description: 'Android Gradle module name'
+  keystore_file:
+    required: true
+    description: 'Base64-encoded release keystore'
+  keystore_password:
+    required: true
+    description: 'Keystore password'
+  keystore_alias:
+    required: true
+    description: 'Keystore alias'
+  keystore_alias_password:
+    required: true
+    description: 'Keystore alias password'
+  google_services:
+    required: true
+    description: 'Base64-encoded google-services.json'
+  playstore_creds:
+    required: true
+    description: 'Base64-encoded Play Store service account JSON'
+  java-version:
+    required: false
+    default: '17'
+    description: 'JDK version (default: 17)'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@afeafc3d1ab54a631816aba4c914a0081c12ff2f  # v1.232.0
+      with:
+        bundler-cache: true
+
+    - name: Materialize secrets
+      shell: bash
+      env:
+        GOOGLE_SERVICES: ${{ inputs.google_services }}
+        PLAYSTORE_CREDS: ${{ inputs.playstore_creds }}
+        KEYSTORE: ${{ inputs.keystore_file }}
+        ANDROID_PACKAGE_NAME: ${{ inputs.android_package_name }}
+      run: bash "$GITHUB_ACTION_PATH/../_shared/scripts/materialize-android-secrets.sh" --playstore
+
+    - name: Upload to Play Internal
+      shell: bash
+      env:
+        KEYSTORE_PASSWORD: ${{ inputs.keystore_password }}
+        KEYSTORE_ALIAS: ${{ inputs.keystore_alias }}
+        KEYSTORE_ALIAS_PASSWORD: ${{ inputs.keystore_alias_password }}
+      run: |
+        bundle exec fastlane android deployInternal \
+          storeFile:release_keystore.keystore \
+          storePassword:"$KEYSTORE_PASSWORD" \
+          keyAlias:"$KEYSTORE_ALIAS" \
+          keyPassword:"$KEYSTORE_ALIAS_PASSWORD"
+
+    - name: Cleanup secrets
+      if: always()
+      shell: bash
+      env:
+        ANDROID_PACKAGE_NAME: ${{ inputs.android_package_name }}
+      run: |
+        rm -rf secrets
+        rm -f keystores/release_keystore.keystore
+        rm -f "$ANDROID_PACKAGE_NAME/google-services.json"
+
+    - name: Upload AAB artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: play-store-aab
+        path: '**/build/outputs/bundle/**/*.aab'

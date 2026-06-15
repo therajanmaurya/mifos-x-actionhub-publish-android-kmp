@@ -1,0 +1,45 @@
+# Sub-action: promote-to-beta — Stage 2 (Internal → Open Beta, no rebuild)
+# Part of openMF/mifos-x-actionhub-publish-android-kmp@v2.0.0
+#
+# Calls `fastlane android promoteToBeta` — moves the AAB already on the
+# Internal track to the Open Beta track. No rebuild, no AAB upload — just a
+# Play Console API call.
+name: 'KMP Publish Android — Promote to Beta (Stage 2)'
+description: 'Promote AAB from Play Internal track to Open Beta track (no rebuild).'
+author: 'Mifos Initiative'
+branding:
+  icon: 'fast-forward'
+  color: 'yellow'
+
+inputs:
+  android_package_name:
+    required: true
+    description: 'Android Gradle module name (used to locate Fastlane appfile context)'
+  playstore_creds:
+    required: true
+    description: 'Base64-encoded Play Store service account JSON'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@afeafc3d1ab54a631816aba4c914a0081c12ff2f  # v1.232.0
+      with:
+        bundler-cache: true
+
+    - name: Materialize Play Store creds
+      shell: bash
+      env:
+        PLAYSTORE_CREDS: ${{ inputs.playstore_creds }}
+      run: |
+        mkdir -p secrets
+        echo "$PLAYSTORE_CREDS" | base64 --decode > secrets/playStorePublishServiceCredentialsFile.json
+
+    - name: Promote Internal → Beta
+      shell: bash
+      run: bundle exec fastlane android promoteToBeta
+
+    - name: Cleanup secrets
+      if: always()
+      shell: bash
+      run: rm -rf secrets

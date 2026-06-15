@@ -1,0 +1,92 @@
+# Example consumer workflow — full Android promotion ladder with approval gates
+#
+# Copy this file into your consumer repo at `.github/workflows/release-android.yml`.
+# Configure GHA environments in repo Settings → Environments:
+#   - android-firebase       (no approval — Stage 0)
+#   - android-play-internal  (1 reviewer)
+#   - android-play-beta      (1 reviewer)
+#   - android-play-production (2 reviewers + 30min wait timer)
+#
+# Required secrets (in repo Settings → Secrets):
+#   GOOGLE_SERVICES, FIREBASE_CREDS, PLAYSTORE_CREDS,
+#   RELEASE_KEYSTORE, KEYSTORE_PASSWORD, KEYSTORE_ALIAS, KEYSTORE_ALIAS_PASSWORD
+name: Release Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Version tag (e.g. v2026.06.15)'
+        required: true
+        type: string
+      starting_rung:
+        description: 'Resume from a specific rung'
+        type: choice
+        options: [firebase, internal, beta, production]
+        default: firebase
+
+# New release supersedes any in-flight one (cancels pending approvals)
+concurrency:
+  group: release-android
+  cancel-in-progress: true
+
+jobs:
+  stage-0-firebase:
+    if: contains(fromJSON('["firebase","internal","beta","production"]'), inputs.starting_rung)
+    runs-on: ubuntu-latest
+    environment: android-firebase           # 👈 no approval required
+    steps:
+      - uses: actions/checkout@v4
+      - uses: openMF/mifos-x-actionhub-publish-android-kmp/firebase-distribution@v2.0.0
+        with:
+          android_package_name:    cmp-android
+          release_type:            prod
+          google_services:         ${{ secrets.GOOGLE_SERVICES }}
+          firebase_creds:          ${{ secrets.FIREBASE_CREDS }}
+          keystore_file:           ${{ secrets.RELEASE_KEYSTORE }}
+          keystore_password:       ${{ secrets.KEYSTORE_PASSWORD }}
+          keystore_alias:          ${{ secrets.KEYSTORE_ALIAS }}
+          keystore_alias_password: ${{ secrets.KEYSTORE_ALIAS_PASSWORD }}
+          tester_groups:           qa-team,beta-testers
+
+  stage-1-play-internal:
+    needs: stage-0-firebase
+    if: contains(fromJSON('["internal","beta","production"]'), inputs.starting_rung) && !cancelled()
+    runs-on: ubuntu-latest
+    environment: android-play-internal      # 👈 1 reviewer (any release-admin)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: openMF/mifos-x-actionhub-publish-android-kmp/play-store-internal@v2.0.0
+        with:
+          android_package_name:    cmp-android
+          google_services:         ${{ secrets.GOOGLE_SERVICES }}
+          playstore_creds:         ${{ secrets.PLAYSTORE_CREDS }}
+          keystore_file:           ${{ secrets.RELEASE_KEYSTORE }}
+          keystore_password:       ${{ secrets.KEYSTORE_PASSWORD }}
+          keystore_alias:          ${{ secrets.KEYSTORE_ALIAS }}
+          keystore_alias_password: ${{ secrets.KEYSTORE_ALIAS_PASSWORD }}
+
+  stage-2-promote-to-beta:
+    needs: stage-1-play-internal
+    if: contains(fromJSON('["beta","production"]'), inputs.starting_rung) && !cancelled()
+    runs-on: ubuntu-latest
+    environment: android-play-beta          # 👈 1 reviewer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: openMF/mifos-x-actionhub-publish-android-kmp/promote-to-beta@v2.0.0
+        with:
+          android_package_name: cmp-android
+          playstore_creds:      ${{ secrets.PLAYSTORE_CREDS }}
+
+  stage-3-promote-to-production:
+    needs: stage-2-promote-to-beta
+    if: inputs.starting_rung == 'production' && !cancelled()
+    runs-on: ubuntu-latest
+    environment: android-play-production    # 👈 2 reviewers + 30min wait timer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: openMF/mifos-x-actionhub-publish-android-kmp/promote-to-production@v2.0.0
+        with:
+          android_package_name: cmp-android
+          playstore_creds:      ${{ secrets.PLAYSTORE_CREDS }}
+          rollout:              '0.10'    # 10% staged rollout

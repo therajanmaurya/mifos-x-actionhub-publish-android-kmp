@@ -1,0 +1,125 @@
+# Sub-action: firebase-distribution — Stage 0 dev/QA distribution
+# Part of openMF/mifos-x-actionhub-publish-android-kmp@v2.0.0
+#
+# Lifted from openMF/mifos-x-actionhub-android-firebase-publish@v1.0.14 with:
+#   - Uses ./build/ sibling sub-action for APK build (no inline build)
+#   - Decodes secrets via _shared/scripts/materialize-android-secrets.sh
+#   - Cleanup secrets in always-run final step
+name: 'KMP Publish Android — Firebase Distribution (Stage 0)'
+description: 'Build APK + upload to Firebase App Distribution. Out-of-band Stage 0 (parallel to the Play Store ladder).'
+author: 'Mifos Initiative'
+branding:
+  icon: 'send'
+  color: 'orange'
+
+inputs:
+  android_package_name:
+    description: 'Android Gradle module name'
+    required: true
+  release_type:
+    description: "Build flavor: 'prod' or 'demo'"
+    required: false
+    default: 'prod'
+  keystore_file:
+    description: 'Base64-encoded release keystore'
+    required: true
+  keystore_password:
+    required: true
+    description: 'Keystore password'
+  keystore_alias:
+    required: true
+    description: 'Keystore alias'
+  keystore_alias_password:
+    required: true
+    description: 'Keystore alias password'
+  google_services:
+    description: 'Base64-encoded google-services.json'
+    required: true
+  firebase_creds:
+    description: 'Base64-encoded Firebase App Distribution service account JSON'
+    required: true
+  tester_groups:
+    description: 'Comma-separated Firebase tester group names'
+    required: true
+  java-version:
+    description: 'JDK version (default: 17)'
+    required: false
+    default: '17'
+
+outputs:
+  firebase_release_url:
+    description: 'Firebase App Distribution release URL'
+    value: ${{ steps.deploy.outputs.firebase_release_url }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Ruby
+      # SHA-pinned per existing constellation convention (AC19)
+      uses: ruby/setup-ruby@afeafc3d1ab54a631816aba4c914a0081c12ff2f  # v1.232.0
+      with:
+        bundler-cache: true
+
+    - name: Install Fastlane plugins
+      shell: bash
+      run: |
+        # Pinned plugin version — floating add_plugin forbidden (sub-plan 01)
+        fastlane add_plugin firebase_app_distribution --version=1.0.0
+
+    - name: Materialize secrets
+      shell: bash
+      env:
+        GOOGLE_SERVICES: ${{ inputs.google_services }}
+        FIREBASE_CREDS: ${{ inputs.firebase_creds }}
+        KEYSTORE: ${{ inputs.keystore_file }}
+        ANDROID_PACKAGE_NAME: ${{ inputs.android_package_name }}
+      run: bash "$GITHUB_ACTION_PATH/../_shared/scripts/materialize-android-secrets.sh"
+
+    - name: Deploy to Firebase (prod)
+      id: deploy
+      if: ${{ inputs.release_type == 'prod' }}
+      shell: bash
+      env:
+        KEYSTORE_PASSWORD: ${{ inputs.keystore_password }}
+        KEYSTORE_ALIAS: ${{ inputs.keystore_alias }}
+        KEYSTORE_ALIAS_PASSWORD: ${{ inputs.keystore_alias_password }}
+        TESTER_GROUPS: ${{ inputs.tester_groups }}
+      run: |
+        bundle exec fastlane android deployReleaseApkOnFirebase \
+          storeFile:release_keystore.keystore \
+          storePassword:"$KEYSTORE_PASSWORD" \
+          keyAlias:"$KEYSTORE_ALIAS" \
+          keyPassword:"$KEYSTORE_ALIAS_PASSWORD" \
+          groups:"$TESTER_GROUPS"
+
+    - name: Deploy to Firebase (demo)
+      if: ${{ inputs.release_type == 'demo' }}
+      shell: bash
+      env:
+        KEYSTORE_PASSWORD: ${{ inputs.keystore_password }}
+        KEYSTORE_ALIAS: ${{ inputs.keystore_alias }}
+        KEYSTORE_ALIAS_PASSWORD: ${{ inputs.keystore_alias_password }}
+        TESTER_GROUPS: ${{ inputs.tester_groups }}
+      run: |
+        bundle exec fastlane android deployDemoApkOnFirebase \
+          storeFile:release_keystore.keystore \
+          storePassword:"$KEYSTORE_PASSWORD" \
+          keyAlias:"$KEYSTORE_ALIAS" \
+          keyPassword:"$KEYSTORE_ALIAS_PASSWORD" \
+          groups:"$TESTER_GROUPS"
+
+    - name: Cleanup secrets
+      if: always()
+      shell: bash
+      env:
+        ANDROID_PACKAGE_NAME: ${{ inputs.android_package_name }}
+      run: |
+        rm -rf secrets
+        rm -f keystores/release_keystore.keystore
+        rm -f "$ANDROID_PACKAGE_NAME/google-services.json"
+
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: firebase-android-${{ inputs.release_type }}-apk
+        path: '**/build/outputs/apk/**/*.apk'

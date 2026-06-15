@@ -1,0 +1,53 @@
+# Sub-action: promote-to-production — Stage 3 (Open Beta → Production, no rebuild)
+# Part of openMF/mifos-x-actionhub-publish-android-kmp@v2.0.0
+#
+# Lifted from openMF/mifos-x-actionhub-publish-android-on-playstore-production@v1.0.14.
+# Calls `fastlane android promote_to_production` with optional staged rollout
+# percentage (default: 0.10 = 10% initial).
+name: 'KMP Publish Android — Promote to Production (Stage 3)'
+description: 'Promote AAB from Open Beta to Play Production with optional staged rollout. No rebuild.'
+author: 'Mifos Initiative'
+branding:
+  icon: 'check-circle'
+  color: 'red'
+
+inputs:
+  android_package_name:
+    required: true
+    description: 'Android Gradle module name'
+  playstore_creds:
+    required: true
+    description: 'Base64-encoded Play Store service account JSON'
+  rollout:
+    required: false
+    default: '0.10'
+    description: 'Initial rollout percentage (0.0-1.0). Default 0.10 = 10% staged rollout.'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@afeafc3d1ab54a631816aba4c914a0081c12ff2f  # v1.232.0
+      with:
+        bundler-cache: true
+
+    - name: Materialize Play Store creds
+      shell: bash
+      env:
+        PLAYSTORE_CREDS: ${{ inputs.playstore_creds }}
+      run: |
+        mkdir -p secrets
+        echo "$PLAYSTORE_CREDS" | base64 --decode > secrets/playStorePublishServiceCredentialsFile.json
+
+    - name: Promote Beta → Production
+      shell: bash
+      env:
+        ROLLOUT: ${{ inputs.rollout }}
+      run: |
+        bundle exec fastlane android promote_to_production \
+          rollout:"$ROLLOUT"
+
+    - name: Cleanup secrets
+      if: always()
+      shell: bash
+      run: rm -rf secrets
