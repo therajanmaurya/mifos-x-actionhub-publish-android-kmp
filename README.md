@@ -53,7 +53,7 @@ jobs:
           android_package_name: cmp-android
           google_services:        ${{ secrets.GOOGLE_SERVICES }}
           firebase_creds:         ${{ secrets.FIREBASE_CREDS }}
-          keystore_file:          ${{ secrets.RELEASE_KEYSTORE }}
+          keystore_file:          ${{ secrets.UPLOAD_KEYSTORE_FILE }}
           keystore_password:      ${{ secrets.KEYSTORE_PASSWORD }}
           keystore_alias:         ${{ secrets.KEYSTORE_ALIAS }}
           keystore_alias_password:${{ secrets.KEYSTORE_ALIAS_PASSWORD }}
@@ -66,7 +66,7 @@ jobs:
           android_package_name:   cmp-android
           google_services:        ${{ secrets.GOOGLE_SERVICES }}
           playstore_creds:        ${{ secrets.PLAYSTORE_CREDS }}
-          keystore_file:          ${{ secrets.RELEASE_KEYSTORE }}
+          keystore_file:          ${{ secrets.UPLOAD_KEYSTORE_FILE }}
           keystore_password:      ${{ secrets.KEYSTORE_PASSWORD }}
           keystore_alias:         ${{ secrets.KEYSTORE_ALIAS }}
           keystore_alias_password:${{ secrets.KEYSTORE_ALIAS_PASSWORD }}

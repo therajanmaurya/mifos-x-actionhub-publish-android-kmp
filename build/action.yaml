@@ -27,7 +27,7 @@ inputs:
 
   # Release-build only: signing config
   keystore_file:
-    description: 'Base64-encoded release keystore (required for build_type=Release)'
+    description: 'Base64-encoded Play Console upload keystore (Play App Signing) (required for build_type=Release)'
     required: false
   keystore_password:
     description: 'Keystore password (required for build_type=Release)'
@@ -122,5 +122,5 @@ runs:
       env:
         ANDROID_PACKAGE_NAME: ${{ inputs.android_package_name }}
       run: |
-        rm -f keystores/release_keystore.keystore
+        rm -f keystores/upload_keystore.keystore
         rm -f "$ANDROID_PACKAGE_NAME/google-services.json"

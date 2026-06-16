@@ -26,7 +26,7 @@ Out-of-band channel for QA testing. Parallel to the Play Store ladder (Firebase 
   with:
     android_package_name:    cmp-android
     release_type:            prod
-    keystore_file:           ${{ secrets.RELEASE_KEYSTORE }}
+    keystore_file:           ${{ secrets.UPLOAD_KEYSTORE_FILE }}
     keystore_password:       ${{ secrets.KEYSTORE_PASSWORD }}
     keystore_alias:          ${{ secrets.KEYSTORE_ALIAS }}
     keystore_alias_password: ${{ secrets.KEYSTORE_ALIAS_PASSWORD }}
