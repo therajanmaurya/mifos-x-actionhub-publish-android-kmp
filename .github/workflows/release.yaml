@@ -25,6 +25,7 @@
 # Composite refs use therajanmaurya/* during initial dev phase. Will rebind to
 # openMF/* at v2.0.0 tag (post-transfer).
 name: Release · Android (ladder)
+run-name: "🤖 Release Android ${{ inputs.version_tag }} · ladder→${{ inputs.starting_rung }}"
 
 on:
   workflow_call:
@@ -67,8 +68,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Preflight: validate required secrets per rung — fail-fast in ~8s instead of
+  # dying deep in Gradle / Fastlane after 5-10 min with a confusing error.
+  validate-secrets:
+    name: Preflight · Validate required secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check android secrets per rung
+        env:
+          google_services:         ${{ secrets.google_services }}
+          firebase_creds:          ${{ secrets.firebase_creds }}
+          playstore_creds:         ${{ secrets.playstore_creds }}
+          upload_keystore:         ${{ secrets.upload_keystore }}
+          keystore_password:       ${{ secrets.keystore_password }}
+          keystore_alias:          ${{ secrets.keystore_alias }}
+          keystore_alias_password: ${{ secrets.keystore_alias_password }}
+        run: |
+          MISSING=()
+          [[ -z "${google_services:-}" ]]         && MISSING+=("google_services")
+          [[ -z "${upload_keystore:-}" ]]         && MISSING+=("upload_keystore")
+          [[ -z "${keystore_password:-}" ]]       && MISSING+=("keystore_password")
+          [[ -z "${keystore_alias:-}" ]]          && MISSING+=("keystore_alias")
+          [[ -z "${keystore_alias_password:-}" ]] && MISSING+=("keystore_alias_password")
+          [[ "${{ inputs.starting_rung }}" =~ ^(firebase|internal|beta|production)$ ]] && [[ -z "${firebase_creds:-}" ]] && MISSING+=("firebase_creds")
+          [[ "${{ inputs.starting_rung }}" =~ ^(internal|beta|production)$ ]] && [[ -z "${playstore_creds:-}" ]] && MISSING+=("playstore_creds")
+          if [[ ${#MISSING[@]} -gt 0 ]]; then
+            echo "❌ Android ladder→${{ inputs.starting_rung }} requires these secrets, but they are MISSING:"
+            printf '   - %s\n' "${MISSING[@]}"
+            echo ""
+            echo "Set them in your repo's Settings → Secrets and variables → Actions:"
+            for s in "${MISSING[@]}"; do echo "   gh secret set $s --repo \${{ github.repository }}"; done
+            exit 1
+          fi
+          echo "✅ Android secrets present"
+
   stage-0-firebase:
     name: Stage 0 — Firebase App Distribution
+    needs: [validate-secrets]
     if: contains(fromJSON('["firebase","internal","beta","production"]'), inputs.starting_rung)
     runs-on: ubuntu-latest
     environment: android-firebase
