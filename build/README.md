@@ -35,7 +35,7 @@ Compose Android build sub-action. Produces APK + AAB.
   with:
     android_package_name: cmp-android
     build_type:           Release
-    keystore_file:        ${{ secrets.RELEASE_KEYSTORE }}
+    keystore_file:        ${{ secrets.UPLOAD_KEYSTORE_FILE }}
     keystore_password:    ${{ secrets.KEYSTORE_PASSWORD }}
     keystore_alias:       ${{ secrets.KEYSTORE_ALIAS }}
     keystore_alias_password: ${{ secrets.KEYSTORE_ALIAS_PASSWORD }}

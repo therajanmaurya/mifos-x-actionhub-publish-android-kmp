@@ -17,7 +17,7 @@ inputs:
     description: 'Android Gradle module name'
   keystore_file:
     required: true
-    description: 'Base64-encoded release keystore'
+    description: 'Base64-encoded Play Console upload keystore (Play App Signing)'
   keystore_password:
     required: true
     description: 'Keystore password'
@@ -63,7 +63,7 @@ runs:
         KEYSTORE_ALIAS_PASSWORD: ${{ inputs.keystore_alias_password }}
       run: |
         bundle exec fastlane android deployInternal \
-          storeFile:release_keystore.keystore \
+          storeFile:upload_keystore.keystore \
           storePassword:"$KEYSTORE_PASSWORD" \
           keyAlias:"$KEYSTORE_ALIAS" \
           keyPassword:"$KEYSTORE_ALIAS_PASSWORD"
@@ -75,7 +75,7 @@ runs:
         ANDROID_PACKAGE_NAME: ${{ inputs.android_package_name }}
       run: |
         rm -rf secrets
-        rm -f keystores/release_keystore.keystore
+        rm -f keystores/upload_keystore.keystore
         rm -f "$ANDROID_PACKAGE_NAME/google-services.json"
 
     - name: Upload AAB artifact

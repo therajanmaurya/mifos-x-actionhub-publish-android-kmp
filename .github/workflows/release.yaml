@@ -57,7 +57,7 @@ on:
       google_services:           { required: true }
       firebase_creds:            { required: true }
       playstore_creds:           { required: true }
-      release_keystore:          { required: true }
+      upload_keystore:          { required: true }
       keystore_password:         { required: true }
       keystore_alias:            { required: true }
       keystore_alias_password:   { required: true }
@@ -81,7 +81,7 @@ jobs:
           release_type:             prod
           google_services:          ${{ secrets.google_services }}
           firebase_creds:           ${{ secrets.firebase_creds }}
-          keystore_file:            ${{ secrets.release_keystore }}
+          keystore_file:            ${{ secrets.upload_keystore }}
           keystore_password:        ${{ secrets.keystore_password }}
           keystore_alias:           ${{ secrets.keystore_alias }}
           keystore_alias_password:  ${{ secrets.keystore_alias_password }}
@@ -101,7 +101,7 @@ jobs:
           android_package_name:     ${{ inputs.android_package_name }}
           google_services:          ${{ secrets.google_services }}
           playstore_creds:          ${{ secrets.playstore_creds }}
-          keystore_file:            ${{ secrets.release_keystore }}
+          keystore_file:            ${{ secrets.upload_keystore }}
           keystore_password:        ${{ secrets.keystore_password }}
           keystore_alias:           ${{ secrets.keystore_alias }}
           keystore_alias_password:  ${{ secrets.keystore_alias_password }}

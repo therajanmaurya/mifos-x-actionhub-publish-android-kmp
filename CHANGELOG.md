@@ -2,6 +2,33 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased] — Play App Signing alignment (breaking)
+
+### Changed
+- **BREAKING**: `workflow_call` secret renamed `release_keystore` → `upload_keystore` to align with Google's Play App Signing terminology. Consumers must update their workflow's `secrets:` block.
+- Internal keystore filename `keystores/release_keystore.keystore` → `keystores/upload_keystore.keystore` (matches Play App Signing "upload key" semantics + matches downstream project conventions).
+- Sub-action `keystore_file` input description updated to "Base64-encoded Play Console upload keystore (Play App Signing)".
+- `_shared/scripts/{materialize-android-secrets,decode-keystore}.sh` decode `$KEYSTORE` env var to the new path; doc-comments reference Play App Signing model + Google KMS.
+
+### Why
+Per [Google's official Play App Signing docs](https://support.google.com/googleplay/android-developer/answer/9842756): 90%+ of new apps use Play App Signing by default. Google holds the app signing key in KMS; developers only hold the upload key. The pre-2021 legacy "release keystore" terminology conflates the two; this release adopts the correct terminology end-to-end.
+
+### Migration (for consumers)
+```diff
+  secrets:
+    google_services:          ${{ secrets.GOOGLE_SERVICES }}
+    firebase_creds:           ${{ secrets.FIREBASE_CREDS }}
+    playstore_creds:          ${{ secrets.PLAYSTORE_CREDS }}
+-   release_keystore:         ${{ secrets.RELEASE_KEYSTORE }}
++   upload_keystore:          ${{ secrets.UPLOAD_KEYSTORE_FILE }}
+    keystore_password:        ${{ secrets.KEYSTORE_PASSWORD }}
+    keystore_alias:           ${{ secrets.KEYSTORE_ALIAS }}
+    keystore_alias_password:  ${{ secrets.KEYSTORE_ALIAS_PASSWORD }}
+```
+
+Consumer-side GHA secrets should be renamed `RELEASE_KEYSTORE` → `UPLOAD_KEYSTORE_FILE` for parity with the upstream `kmp-project-template` v2 convention (Play App Signing single-keystore model).
+
+
 ## v2.0.0 — Constellation consolidation (planned)
 
 ### Added
