@@ -111,7 +111,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Publish to Firebase
-        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/firebase-distribution@v2.0.8
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/firebase-distribution@v2.0.9
         with:
           android_package_name:     ${{ inputs.android_package_name }}
           release_type:             prod
@@ -132,7 +132,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Upload to Play Internal
-        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/play-store-internal@v2.0.8
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/play-store-internal@v2.0.9
         with:
           android_package_name:     ${{ inputs.android_package_name }}
           google_services:          ${{ secrets.google_services }}
@@ -151,7 +151,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Promote Internal → Beta
-        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-beta@v2.0.8
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-beta@v2.0.9
         with:
           android_package_name: ${{ inputs.android_package_name }}
           playstore_creds:      ${{ secrets.playstore_creds }}
@@ -165,7 +165,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Promote Beta → Production (staged rollout)
-        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-production@v2.0.8
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-production@v2.0.9
         with:
           android_package_name: ${{ inputs.android_package_name }}
           playstore_creds:      ${{ secrets.playstore_creds }}

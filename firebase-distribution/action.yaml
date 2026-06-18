@@ -1,10 +1,15 @@
 # Sub-action: firebase-distribution — Stage 0 dev/QA distribution
-# Part of openMF/mifos-x-actionhub-publish-android-kmp@v2.0.0
+# Part of openMF/mifos-x-actionhub-publish-android-kmp@v2.0.9
 #
-# Lifted from openMF/mifos-x-actionhub-android-firebase-publish@v1.0.14 with:
-#   - Uses ./build/ sibling sub-action for APK build (no inline build)
-#   - Decodes secrets via _shared/scripts/materialize-android-secrets.sh
-#   - Cleanup secrets in always-run final step
+# Modes (since v2.0.9):
+#   standard         — action materializes secrets, sets envs, invokes fastlane
+#                      lane with explicit options (assumes root-level fastlane/
+#                      Fastfile with `platform :android` block).
+#   pre-materialized — caller has already materialized secrets and set env vars
+#                      before this action runs. Action just CDs to `fastlane_cwd`
+#                      and runs `bundle exec fastlane android <lane>` — lane
+#                      reads everything from env (RULE-DEPLOYMENT-MANIFEST-001
+#                      `deployment/<platform>/<target>/lane.rb` layout).
 name: 'KMP Publish Android — Firebase Distribution (Stage 0)'
 description: 'Build APK + upload to Firebase App Distribution. Out-of-band Stage 0 (parallel to the Play Store ladder).'
 author: 'Mifos Initiative'
@@ -20,24 +25,38 @@ inputs:
     description: "Build flavor: 'prod' or 'demo'"
     required: false
     default: 'prod'
+  mode:
+    description: "'standard' (action materializes + invokes with options) | 'pre-materialized' (caller has set everything up; action just runs fastlane)"
+    required: false
+    default: 'standard'
+  fastlane_cwd:
+    description: 'Working dir for `bundle exec fastlane` invocation. Default `.` (repo root). Set to `deployment` when lanes live at deployment/<platform>/<target>/lane.rb (RULE-DEPLOYMENT-MANIFEST-001).'
+    required: false
+    default: '.'
   keystore_file:
-    description: 'Base64-encoded Play Console upload keystore (Play App Signing)'
-    required: true
+    description: 'Base64-encoded Play Console upload keystore (Play App Signing). Ignored when mode=pre-materialized.'
+    required: false
+    default: ''
   keystore_password:
-    required: true
-    description: 'Keystore password'
+    description: 'Keystore password. Ignored when mode=pre-materialized.'
+    required: false
+    default: ''
   keystore_alias:
-    required: true
-    description: 'Keystore alias'
+    description: 'Keystore alias. Ignored when mode=pre-materialized.'
+    required: false
+    default: ''
   keystore_alias_password:
-    required: true
-    description: 'Keystore alias password'
+    description: 'Keystore alias password. Ignored when mode=pre-materialized.'
+    required: false
+    default: ''
   google_services:
-    description: 'Base64-encoded google-services.json'
-    required: true
+    description: 'Base64-encoded google-services.json. Ignored when mode=pre-materialized.'
+    required: false
+    default: ''
   firebase_creds:
-    description: 'Base64-encoded Firebase App Distribution service account JSON'
-    required: true
+    description: 'Base64-encoded Firebase App Distribution service account JSON. Ignored when mode=pre-materialized.'
+    required: false
+    default: ''
   tester_groups:
     description: 'Comma-separated Firebase tester group names'
     required: true
@@ -49,7 +68,7 @@ inputs:
 outputs:
   firebase_release_url:
     description: 'Firebase App Distribution release URL'
-    value: ${{ steps.deploy.outputs.firebase_release_url }}
+    value: ${{ steps.deploy-standard.outputs.firebase_release_url }}
 
 runs:
   using: 'composite'
@@ -59,28 +78,22 @@ runs:
       uses: ruby/setup-ruby@afeafc3d1ab54a631816aba4c914a0081c12ff2f  # v1.232.0
       with:
         bundler-cache: true
+        working-directory: ${{ inputs.fastlane_cwd }}
 
-    # Plugin install step intentionally OMITTED (v2.0.6 reverted; v2.0.7+).
-    # Reason: `fastlane add_plugin` doesn't accept `--version=<v>` — fastlane
-    # parses the value as a second plugin name and aborts with
-    # "no version found in package 1.0.0". The consumer's fastlane/Pluginfile
-    # declares the plugin gem ('fastlane-plugin-firebase_app_distribution'),
-    # which bundle install (run by setup-ruby's bundler-cache:true) already
-    # resolves + installs. The add_plugin step was redundant AND buggy.
-    # Plugin version pinning belongs in the consumer's Pluginfile, not here.
-
-    - name: Materialize secrets
+    # ─── STANDARD MODE ─────────────────────────────────────────────────────
+    - name: Materialize secrets (standard mode)
+      if: ${{ inputs.mode == 'standard' }}
       shell: bash
       env:
         GOOGLE_SERVICES: ${{ inputs.google_services }}
         FIREBASE_CREDS: ${{ inputs.firebase_creds }}
         KEYSTORE: ${{ inputs.keystore_file }}
         ANDROID_PACKAGE_NAME: ${{ inputs.android_package_name }}
-      run: bash "$GITHUB_ACTION_PATH/../_shared/scripts/materialize-android-secrets.sh"
+      run: bash "$GITHUB_ACTION_PATH/../_shared/scripts/materialize-android-secrets.sh" --firebase
 
-    - name: Deploy to Firebase (prod)
-      id: deploy
-      if: ${{ inputs.release_type == 'prod' }}
+    - name: Deploy to Firebase (standard, prod)
+      id: deploy-standard
+      if: ${{ inputs.mode == 'standard' && inputs.release_type == 'prod' }}
       shell: bash
       env:
         KEYSTORE_PASSWORD: ${{ inputs.keystore_password }}
@@ -95,8 +108,8 @@ runs:
           keyPassword:"$KEYSTORE_ALIAS_PASSWORD" \
           groups:"$TESTER_GROUPS"
 
-    - name: Deploy to Firebase (demo)
-      if: ${{ inputs.release_type == 'demo' }}
+    - name: Deploy to Firebase (standard, demo)
+      if: ${{ inputs.mode == 'standard' && inputs.release_type == 'demo' }}
       shell: bash
       env:
         KEYSTORE_PASSWORD: ${{ inputs.keystore_password }}
@@ -111,8 +124,8 @@ runs:
           keyPassword:"$KEYSTORE_ALIAS_PASSWORD" \
           groups:"$TESTER_GROUPS"
 
-    - name: Cleanup secrets
-      if: always()
+    - name: Cleanup secrets (standard mode)
+      if: ${{ always() && inputs.mode == 'standard' }}
       shell: bash
       env:
         ANDROID_PACKAGE_NAME: ${{ inputs.android_package_name }}
@@ -121,6 +134,28 @@ runs:
         rm -f keystores/upload_keystore.keystore
         rm -f "$ANDROID_PACKAGE_NAME/google-services.json"
 
+    # ─── PRE-MATERIALIZED MODE ─────────────────────────────────────────────
+    # Caller has already materialized secrets and set env vars (KEYSTORE_PATH,
+    # KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD, FIREBASE_SERVICE_ACCOUNT_PATH,
+    # FIREBASE_ANDROID_APP_ID, FIREBASE_GROUPS, etc.) per lane contract.
+    # Action just CDs to fastlane_cwd and invokes the lane.
+    - name: Deploy to Firebase (pre-materialized, prod)
+      if: ${{ inputs.mode == 'pre-materialized' && inputs.release_type == 'prod' }}
+      shell: bash
+      working-directory: ${{ inputs.fastlane_cwd }}
+      env:
+        FIREBASE_GROUPS: ${{ inputs.tester_groups }}
+      run: bundle exec fastlane android deployReleaseApkOnFirebase
+
+    - name: Deploy to Firebase (pre-materialized, demo)
+      if: ${{ inputs.mode == 'pre-materialized' && inputs.release_type == 'demo' }}
+      shell: bash
+      working-directory: ${{ inputs.fastlane_cwd }}
+      env:
+        FIREBASE_GROUPS: ${{ inputs.tester_groups }}
+      run: bundle exec fastlane android deployDemoApkOnFirebase
+
+    # ─── ARTIFACT UPLOAD (both modes) ──────────────────────────────────────
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:

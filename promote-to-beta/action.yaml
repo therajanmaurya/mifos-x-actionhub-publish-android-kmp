@@ -1,9 +1,5 @@
 # Sub-action: promote-to-beta — Stage 2 (Internal → Open Beta, no rebuild)
-# Part of openMF/mifos-x-actionhub-publish-android-kmp@v2.0.0
-#
-# Calls `fastlane android promoteToBeta` — moves the AAB already on the
-# Internal track to the Open Beta track. No rebuild, no AAB upload — just a
-# Play Console API call.
+# Part of openMF/mifos-x-actionhub-publish-android-kmp@v2.0.9
 name: 'KMP Publish Android — Promote to Beta (Stage 2)'
 description: 'Promote AAB from Play Internal track to Open Beta track (no rebuild).'
 author: 'Mifos Initiative'
@@ -15,9 +11,18 @@ inputs:
   android_package_name:
     required: true
     description: 'Android Gradle module name (used to locate Fastlane appfile context)'
+  mode:
+    required: false
+    default: 'standard'
+    description: "'standard' or 'pre-materialized'"
+  fastlane_cwd:
+    required: false
+    default: '.'
+    description: 'Working dir for fastlane (RULE-DEPLOYMENT-MANIFEST-001: set to `deployment`)'
   playstore_creds:
-    required: true
-    description: 'Base64-encoded Play Store service account JSON'
+    required: false
+    default: ''
+    description: 'Base64-encoded Play Store SA JSON. Ignored when mode=pre-materialized.'
 
 runs:
   using: 'composite'
@@ -26,8 +31,11 @@ runs:
       uses: ruby/setup-ruby@afeafc3d1ab54a631816aba4c914a0081c12ff2f  # v1.232.0
       with:
         bundler-cache: true
+        working-directory: ${{ inputs.fastlane_cwd }}
 
-    - name: Materialize Play Store creds
+    # ─── STANDARD MODE ─────────────────────────────────────────────────────
+    - name: Materialize Play Store creds (standard mode)
+      if: ${{ inputs.mode == 'standard' }}
       shell: bash
       env:
         PLAYSTORE_CREDS: ${{ inputs.playstore_creds }}
@@ -35,11 +43,19 @@ runs:
         mkdir -p secrets
         echo "$PLAYSTORE_CREDS" | base64 --decode > secrets/playStorePublishServiceCredentialsFile.json
 
-    - name: Promote Internal → Beta
+    - name: Promote Internal → Beta (standard mode)
+      if: ${{ inputs.mode == 'standard' }}
       shell: bash
       run: bundle exec fastlane android promoteToBeta
 
-    - name: Cleanup secrets
-      if: always()
+    - name: Cleanup secrets (standard mode)
+      if: ${{ always() && inputs.mode == 'standard' }}
       shell: bash
       run: rm -rf secrets
+
+    # ─── PRE-MATERIALIZED MODE ─────────────────────────────────────────────
+    - name: Promote Internal → Beta (pre-materialized mode)
+      if: ${{ inputs.mode == 'pre-materialized' }}
+      shell: bash
+      working-directory: ${{ inputs.fastlane_cwd }}
+      run: bundle exec fastlane android promoteToBeta
