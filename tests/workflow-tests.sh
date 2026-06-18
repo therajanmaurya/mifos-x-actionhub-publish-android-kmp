@@ -314,6 +314,43 @@ for action_yaml in glob.glob(\"**/action.yaml\", recursive=True):
 '"
 echo
 
+
+
+# ── Tier 11: release.yaml input contract — every with: passes valid + complete inputs ──
+echo "── Tier 11: release.yaml input contract ──"
+run_test "T45: every release.yaml 'with:' block passes valid + complete inputs to composite actions" "python3 -c '
+import yaml, os, sys
+d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
+issues = []
+for j_name, j in d[\"jobs\"].items():
+    if \"steps\" not in j: continue
+    for step in j.get(\"steps\", []):
+        if not isinstance(step, dict): continue
+        uses = step.get(\"uses\", \"\")
+        if \"publish-android-kmp/\" not in uses: continue
+        sub = uses.split(\"/\")[-1].split(\"@\")[0]
+        action_yaml = sub + \"/action.yaml\"
+        if not os.path.exists(action_yaml): continue
+        action_def = yaml.safe_load(open(action_yaml))
+        declared = set(action_def.get(\"inputs\", {}).keys())
+        passed = set(step.get(\"with\", {}).keys())
+        unknown = passed - declared
+        missing = set()
+        for inp_name, inp_def in action_def.get(\"inputs\", {}).items():
+            if isinstance(inp_def, dict) and inp_def.get(\"required\") == True and inp_name not in passed:
+                missing.add(inp_name)
+        for u in unknown:
+            issues.append(j_name + \" -> \" + sub + \": UNKNOWN input passed: \" + u)
+        for m in missing:
+            issues.append(j_name + \" -> \" + sub + \": MISSING required input: \" + m)
+if issues:
+    print(\"FAIL — input contract violations:\")
+    for i in issues: print(\"  \" + i)
+    sys.exit(1)
+print(\"OK — every with: passes valid + complete inputs\")
+'"
+echo
+
 # ─────────────────────────────────────────────────────────────────────────────
 echo "════════════════════════════════════════════════════════════════════════════"
 echo "  Results: $PASS passed · $FAIL failed"
