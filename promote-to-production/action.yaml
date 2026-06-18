@@ -1,9 +1,5 @@
 # Sub-action: promote-to-production — Stage 3 (Open Beta → Production, no rebuild)
-# Part of openMF/mifos-x-actionhub-publish-android-kmp@v2.0.0
-#
-# Lifted from openMF/mifos-x-actionhub-publish-android-on-playstore-production@v1.0.14.
-# Calls `fastlane android promote_to_production` with optional staged rollout
-# percentage (default: 0.10 = 10% initial).
+# Part of openMF/mifos-x-actionhub-publish-android-kmp@v2.0.9
 name: 'KMP Publish Android — Promote to Production (Stage 3)'
 description: 'Promote AAB from Open Beta to Play Production with optional staged rollout. No rebuild.'
 author: 'Mifos Initiative'
@@ -15,9 +11,18 @@ inputs:
   android_package_name:
     required: true
     description: 'Android Gradle module name'
+  mode:
+    required: false
+    default: 'standard'
+    description: "'standard' or 'pre-materialized'"
+  fastlane_cwd:
+    required: false
+    default: '.'
+    description: 'Working dir for fastlane (RULE-DEPLOYMENT-MANIFEST-001: set to `deployment`)'
   playstore_creds:
-    required: true
-    description: 'Base64-encoded Play Store service account JSON'
+    required: false
+    default: ''
+    description: 'Base64-encoded Play Store SA JSON. Ignored when mode=pre-materialized.'
   rollout:
     required: false
     default: '0.10'
@@ -30,8 +35,11 @@ runs:
       uses: ruby/setup-ruby@afeafc3d1ab54a631816aba4c914a0081c12ff2f  # v1.232.0
       with:
         bundler-cache: true
+        working-directory: ${{ inputs.fastlane_cwd }}
 
-    - name: Materialize Play Store creds
+    # ─── STANDARD MODE ─────────────────────────────────────────────────────
+    - name: Materialize Play Store creds (standard mode)
+      if: ${{ inputs.mode == 'standard' }}
       shell: bash
       env:
         PLAYSTORE_CREDS: ${{ inputs.playstore_creds }}
@@ -39,7 +47,8 @@ runs:
         mkdir -p secrets
         echo "$PLAYSTORE_CREDS" | base64 --decode > secrets/playStorePublishServiceCredentialsFile.json
 
-    - name: Promote Beta → Production
+    - name: Promote Beta → Production (standard mode)
+      if: ${{ inputs.mode == 'standard' }}
       shell: bash
       env:
         ROLLOUT: ${{ inputs.rollout }}
@@ -47,7 +56,18 @@ runs:
         bundle exec fastlane android promote_to_production \
           rollout:"$ROLLOUT"
 
-    - name: Cleanup secrets
-      if: always()
+    - name: Cleanup secrets (standard mode)
+      if: ${{ always() && inputs.mode == 'standard' }}
       shell: bash
       run: rm -rf secrets
+
+    # ─── PRE-MATERIALIZED MODE ─────────────────────────────────────────────
+    - name: Promote Beta → Production (pre-materialized mode)
+      if: ${{ inputs.mode == 'pre-materialized' }}
+      shell: bash
+      working-directory: ${{ inputs.fastlane_cwd }}
+      env:
+        ROLLOUT: ${{ inputs.rollout }}
+      run: |
+        bundle exec fastlane android promote_to_production \
+          rollout:"$ROLLOUT"

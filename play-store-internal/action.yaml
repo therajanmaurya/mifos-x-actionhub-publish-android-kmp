@@ -1,9 +1,15 @@
 # Sub-action: play-store-internal — Stage 1 (Play Internal track)
-# Part of openMF/mifos-x-actionhub-publish-android-kmp@v2.0.0
+# Part of openMF/mifos-x-actionhub-publish-android-kmp@v2.0.9
 #
-# Split from openMF/mifos-x-actionhub-publish-android-on-playstore-beta@v1.0.14
-# (the legacy action took a release_type=internal|beta input; we split into two
-# separate sub-actions for explicit ladder semantics + per-rung approval gates).
+# Modes (since v2.0.9):
+#   standard         — action materializes secrets, sets envs, invokes fastlane
+#                      lane with explicit options (assumes root-level fastlane/
+#                      Fastfile with `platform :android` block).
+#   pre-materialized — caller has already materialized secrets and set env vars
+#                      before this action runs. Action just CDs to `fastlane_cwd`
+#                      and runs `bundle exec fastlane android <lane>` — lane
+#                      reads everything from env (RULE-DEPLOYMENT-MANIFEST-001
+#                      `deployment/<platform>/<target>/lane.rb` layout).
 name: 'KMP Publish Android — Play Store Internal (Stage 1)'
 description: 'Build AAB + upload to Google Play Internal testing track.'
 author: 'Mifos Initiative'
@@ -15,24 +21,38 @@ inputs:
   android_package_name:
     required: true
     description: 'Android Gradle module name'
+  mode:
+    required: false
+    default: 'standard'
+    description: "'standard' or 'pre-materialized'"
+  fastlane_cwd:
+    required: false
+    default: '.'
+    description: 'Working dir for fastlane (RULE-DEPLOYMENT-MANIFEST-001: set to `deployment`)'
   keystore_file:
-    required: true
-    description: 'Base64-encoded Play Console upload keystore (Play App Signing)'
+    required: false
+    default: ''
+    description: 'Base64-encoded upload keystore. Ignored when mode=pre-materialized.'
   keystore_password:
-    required: true
-    description: 'Keystore password'
+    required: false
+    default: ''
+    description: 'Ignored when mode=pre-materialized.'
   keystore_alias:
-    required: true
-    description: 'Keystore alias'
+    required: false
+    default: ''
+    description: 'Ignored when mode=pre-materialized.'
   keystore_alias_password:
-    required: true
-    description: 'Keystore alias password'
+    required: false
+    default: ''
+    description: 'Ignored when mode=pre-materialized.'
   google_services:
-    required: true
-    description: 'Base64-encoded google-services.json'
+    required: false
+    default: ''
+    description: 'Base64-encoded google-services.json. Ignored when mode=pre-materialized.'
   playstore_creds:
-    required: true
-    description: 'Base64-encoded Play Store service account JSON'
+    required: false
+    default: ''
+    description: 'Base64-encoded Play Store SA JSON. Ignored when mode=pre-materialized.'
   java-version:
     required: false
     default: '17'
@@ -45,8 +65,11 @@ runs:
       uses: ruby/setup-ruby@afeafc3d1ab54a631816aba4c914a0081c12ff2f  # v1.232.0
       with:
         bundler-cache: true
+        working-directory: ${{ inputs.fastlane_cwd }}
 
-    - name: Materialize secrets
+    # ─── STANDARD MODE ─────────────────────────────────────────────────────
+    - name: Materialize secrets (standard mode)
+      if: ${{ inputs.mode == 'standard' }}
       shell: bash
       env:
         GOOGLE_SERVICES: ${{ inputs.google_services }}
@@ -55,7 +78,8 @@ runs:
         ANDROID_PACKAGE_NAME: ${{ inputs.android_package_name }}
       run: bash "$GITHUB_ACTION_PATH/../_shared/scripts/materialize-android-secrets.sh" --playstore
 
-    - name: Upload to Play Internal
+    - name: Upload to Play Internal (standard mode)
+      if: ${{ inputs.mode == 'standard' }}
       shell: bash
       env:
         KEYSTORE_PASSWORD: ${{ inputs.keystore_password }}
@@ -68,8 +92,8 @@ runs:
           keyAlias:"$KEYSTORE_ALIAS" \
           keyPassword:"$KEYSTORE_ALIAS_PASSWORD"
 
-    - name: Cleanup secrets
-      if: always()
+    - name: Cleanup secrets (standard mode)
+      if: ${{ always() && inputs.mode == 'standard' }}
       shell: bash
       env:
         ANDROID_PACKAGE_NAME: ${{ inputs.android_package_name }}
@@ -78,6 +102,14 @@ runs:
         rm -f keystores/upload_keystore.keystore
         rm -f "$ANDROID_PACKAGE_NAME/google-services.json"
 
+    # ─── PRE-MATERIALIZED MODE ─────────────────────────────────────────────
+    - name: Upload to Play Internal (pre-materialized mode)
+      if: ${{ inputs.mode == 'pre-materialized' }}
+      shell: bash
+      working-directory: ${{ inputs.fastlane_cwd }}
+      run: bundle exec fastlane android deployInternal
+
+    # ─── ARTIFACT UPLOAD (both modes) ──────────────────────────────────────
     - name: Upload AAB artifact
       uses: actions/upload-artifact@v4
       with:
