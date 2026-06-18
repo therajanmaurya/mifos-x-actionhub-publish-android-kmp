@@ -60,18 +60,14 @@ runs:
       with:
         bundler-cache: true
 
-    - name: Install Fastlane plugins
-      shell: bash
-      run: |
-        # Pinned plugin version — floating add_plugin forbidden (sub-plan 01).
-        # bundle exec: setup-ruby's `bundler-cache: true` step installed
-        # fastlane to ./vendor/bundle (user-writable). Bare `fastlane
-        # add_plugin` would invoke the SYSTEM fastlane in /var/lib/gems
-        # (root-owned since 2026-06 runner image refresh) and fail with
-        # "You don't have write permissions for the /var/lib/gems/3.2.0
-        # directory". Using bundle exec routes to the user-installed
-        # binary and is idempotent if the plugin is already in Pluginfile.
-        bundle exec fastlane add_plugin firebase_app_distribution --version=1.0.0
+    # Plugin install step intentionally OMITTED (v2.0.6 reverted; v2.0.7+).
+    # Reason: `fastlane add_plugin` doesn't accept `--version=<v>` — fastlane
+    # parses the value as a second plugin name and aborts with
+    # "no version found in package 1.0.0". The consumer's fastlane/Pluginfile
+    # declares the plugin gem ('fastlane-plugin-firebase_app_distribution'),
+    # which bundle install (run by setup-ruby's bundler-cache:true) already
+    # resolves + installs. The add_plugin step was redundant AND buggy.
+    # Plugin version pinning belongs in the consumer's Pluginfile, not here.
 
     - name: Materialize secrets
       shell: bash
