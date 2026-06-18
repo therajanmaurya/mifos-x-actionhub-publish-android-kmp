@@ -98,11 +98,13 @@ got = set(d[\"on\" if \"on\" in d else True][\"workflow_call\"][\"secrets\"].key
 expected = set([\"google_services\",\"firebase_creds\",\"playstore_creds\",\"upload_keystore\",\"keystore_password\",\"keystore_alias\",\"keystore_alias_password\"])
 assert expected.issubset(got), \"missing secrets: \" + str(expected - got)
 '"
-run_test "T12: all workflow_call secrets are required:True (Android: strict upfront — different from desktop/web's optional pattern)" "py '
+run_test "T12: workflow_call declares the 7 keystore/firebase/playstore secrets (required-flag relaxed in v2.0.10 so mode=pre-materialized callers can omit)" "py '
 import yaml
 d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
-for name, spec in d[\"on\" if \"on\" in d else True][\"workflow_call\"][\"secrets\"].items():
-    assert spec.get(\"required\") == True, name + \" should be required (Android requires all 7 keystore+firebase+playstore secrets upfront)\"
+got = set(d[\"on\" if \"on\" in d else True][\"workflow_call\"][\"secrets\"].keys())
+expected = set([\"google_services\",\"firebase_creds\",\"playstore_creds\",\"upload_keystore\",\"keystore_password\",\"keystore_alias\",\"keystore_alias_password\"])
+missing = expected - got
+assert not missing, \"missing secret declarations: \" + str(missing)
 '"
 echo
 
