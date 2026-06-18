@@ -120,7 +120,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: android-firebase
     env:
-      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+      SOPS_AGE_KEY:            ${{ secrets.SOPS_AGE_KEY }}
+      UPLOAD_KEYSTORE_B64:     ${{ secrets.upload_keystore }}
+      KEYSTORE_PASSWORD:       ${{ secrets.keystore_password }}
+      KEYSTORE_ALIAS:          ${{ secrets.keystore_alias }}
+      KEYSTORE_ALIAS_PASSWORD: ${{ secrets.keystore_alias_password }}
+      GOOGLE_SERVICES_B64:     ${{ secrets.google_services }}
+      FIREBASE_CREDS_B64:      ${{ secrets.firebase_creds }}
+      PLAYSTORE_CREDS_B64:     ${{ secrets.playstore_creds }}
     steps:
       - uses: actions/checkout@v4
 
@@ -130,7 +137,7 @@ jobs:
         run: ${{ inputs.pre_fastlane_script }}
 
       - name: Publish to Firebase
-        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/firebase-distribution@v2.0.10
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/firebase-distribution@v2.0.11
         with:
           android_package_name:     ${{ inputs.android_package_name }}
           release_type:             prod
@@ -151,7 +158,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: android-play-internal
     env:
-      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+      SOPS_AGE_KEY:            ${{ secrets.SOPS_AGE_KEY }}
+      UPLOAD_KEYSTORE_B64:     ${{ secrets.upload_keystore }}
+      KEYSTORE_PASSWORD:       ${{ secrets.keystore_password }}
+      KEYSTORE_ALIAS:          ${{ secrets.keystore_alias }}
+      KEYSTORE_ALIAS_PASSWORD: ${{ secrets.keystore_alias_password }}
+      GOOGLE_SERVICES_B64:     ${{ secrets.google_services }}
+      FIREBASE_CREDS_B64:      ${{ secrets.firebase_creds }}
+      PLAYSTORE_CREDS_B64:     ${{ secrets.playstore_creds }}
     steps:
       - uses: actions/checkout@v4
 
@@ -161,7 +175,7 @@ jobs:
         run: ${{ inputs.pre_fastlane_script }}
 
       - name: Upload to Play Internal
-        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/play-store-internal@v2.0.10
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/play-store-internal@v2.0.11
         with:
           android_package_name:     ${{ inputs.android_package_name }}
           mode:                     ${{ inputs.mode }}
@@ -180,7 +194,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: android-play-beta
     env:
-      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+      SOPS_AGE_KEY:            ${{ secrets.SOPS_AGE_KEY }}
+      UPLOAD_KEYSTORE_B64:     ${{ secrets.upload_keystore }}
+      KEYSTORE_PASSWORD:       ${{ secrets.keystore_password }}
+      KEYSTORE_ALIAS:          ${{ secrets.keystore_alias }}
+      KEYSTORE_ALIAS_PASSWORD: ${{ secrets.keystore_alias_password }}
+      GOOGLE_SERVICES_B64:     ${{ secrets.google_services }}
+      FIREBASE_CREDS_B64:      ${{ secrets.firebase_creds }}
+      PLAYSTORE_CREDS_B64:     ${{ secrets.playstore_creds }}
     steps:
       - uses: actions/checkout@v4
 
@@ -190,7 +211,7 @@ jobs:
         run: ${{ inputs.pre_fastlane_script }}
 
       - name: Promote Internal → Beta
-        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-beta@v2.0.10
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-beta@v2.0.11
         with:
           android_package_name: ${{ inputs.android_package_name }}
           mode:                 ${{ inputs.mode }}
@@ -204,7 +225,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: android-play-production
     env:
-      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+      SOPS_AGE_KEY:            ${{ secrets.SOPS_AGE_KEY }}
+      UPLOAD_KEYSTORE_B64:     ${{ secrets.upload_keystore }}
+      KEYSTORE_PASSWORD:       ${{ secrets.keystore_password }}
+      KEYSTORE_ALIAS:          ${{ secrets.keystore_alias }}
+      KEYSTORE_ALIAS_PASSWORD: ${{ secrets.keystore_alias_password }}
+      GOOGLE_SERVICES_B64:     ${{ secrets.google_services }}
+      FIREBASE_CREDS_B64:      ${{ secrets.firebase_creds }}
+      PLAYSTORE_CREDS_B64:     ${{ secrets.playstore_creds }}
     steps:
       - uses: actions/checkout@v4
 
@@ -214,7 +242,7 @@ jobs:
         run: ${{ inputs.pre_fastlane_script }}
 
       - name: Promote Beta → Production (staged rollout)
-        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-production@v2.0.10
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-production@v2.0.11
         with:
           android_package_name: ${{ inputs.android_package_name }}
           mode:                 ${{ inputs.mode }}
