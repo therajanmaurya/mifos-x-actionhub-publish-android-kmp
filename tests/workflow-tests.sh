@@ -138,30 +138,34 @@ assert d[\"jobs\"][\"stage-3-promote-to-production\"][\"needs\"] == [\"stage-2-p
 echo
 
 # ── Tier 4: Per-stage composite-action routing ────────────────────────────────
+# (Tests updated v2.0.8+ to drop the @v2.0.0 hardcoding — see Tier 12 self-pin
+# consistency test which catches the @v2.0.0 freeze anti-pattern that silently
+# broke v2.0.6 + v2.0.7 fixes when release.yaml was tagged but composite refs
+# weren't bumped.)
 echo "── Tier 4: Per-stage composite-action routing ──"
-run_test "T18: stage-0 uses firebase-distribution@v2.0.0" "py '
+run_test "T18: stage-0 routes to firebase-distribution composite action" "py '
 import yaml
 d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
 uses = [s[\"uses\"] for s in d[\"jobs\"][\"stage-0-firebase\"][\"steps\"] if isinstance(s,dict) and \"publish-android-kmp/\" in str(s.get(\"uses\",\"\"))]
-assert uses == [\"therajanmaurya/mifos-x-actionhub-publish-android-kmp/firebase-distribution@v2.0.0\"], \"got: \" + str(uses)
+assert len(uses) == 1 and \"/firebase-distribution@\" in uses[0], \"got: \" + str(uses)
 '"
-run_test "T19: stage-1 uses play-store-internal@v2.0.0" "py '
+run_test "T19: stage-1 routes to play-store-internal composite action" "py '
 import yaml
 d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
 uses = [s[\"uses\"] for s in d[\"jobs\"][\"stage-1-play-internal\"][\"steps\"] if isinstance(s,dict) and \"publish-android-kmp/\" in str(s.get(\"uses\",\"\"))]
-assert uses == [\"therajanmaurya/mifos-x-actionhub-publish-android-kmp/play-store-internal@v2.0.0\"], \"got: \" + str(uses)
+assert len(uses) == 1 and \"/play-store-internal@\" in uses[0], \"got: \" + str(uses)
 '"
-run_test "T20: stage-2 uses promote-to-beta@v2.0.0" "py '
+run_test "T20: stage-2 routes to promote-to-beta composite action" "py '
 import yaml
 d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
 uses = [s[\"uses\"] for s in d[\"jobs\"][\"stage-2-promote-to-beta\"][\"steps\"] if isinstance(s,dict) and \"publish-android-kmp/\" in str(s.get(\"uses\",\"\"))]
-assert uses == [\"therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-beta@v2.0.0\"], \"got: \" + str(uses)
+assert len(uses) == 1 and \"/promote-to-beta@\" in uses[0], \"got: \" + str(uses)
 '"
-run_test "T21: stage-3 uses promote-to-production@v2.0.0" "py '
+run_test "T21: stage-3 routes to promote-to-production composite action" "py '
 import yaml
 d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
 uses = [s[\"uses\"] for s in d[\"jobs\"][\"stage-3-promote-to-production\"][\"steps\"] if isinstance(s,dict) and \"publish-android-kmp/\" in str(s.get(\"uses\",\"\"))]
-assert uses == [\"therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-production@v2.0.0\"], \"got: \" + str(uses)
+assert len(uses) == 1 and \"/promote-to-production@\" in uses[0], \"got: \" + str(uses)
 '"
 echo
 
@@ -348,6 +352,35 @@ if issues:
     for i in issues: print(\"  \" + i)
     sys.exit(1)
 print(\"OK — every with: passes valid + complete inputs\")
+'"
+echo
+
+# ── Tier 12: composite-action self-pin consistency ───────────────────────────
+#
+# CATCHES the architectural anti-pattern where release.yaml self-pins its
+# composite-action subdirs at @v2.0.0 (the OLDEST tag) and never updates the
+# references even when subsequent releases change the action.yaml. This caused
+# the v2.0.6 + v2.0.7 fixes to be silently INEFFECTIVE — release.yaml@v2.0.7
+# was still calling firebase-distribution@v2.0.0 which had the buggy add_plugin
+# step. Caller-of-release.yaml saw the tag bump but got the same broken action.
+echo "── Tier 12: composite-action self-pin consistency ──"
+run_test "T46: all composite-action 'uses:' refs in release.yaml use the SAME tag (no v2.0.0 freeze)" "python3 -c '
+import re, sys
+with open(\".github/workflows/release.yaml\") as f:
+    content = f.read()
+pat = re.compile(r\"uses:\\s+therajanmaurya/mifos-x-actionhub-publish-android-kmp/[^/]+@(v[0-9.]+)\")
+tags = set(pat.findall(content))
+if len(tags) > 1:
+    print(\"FAIL — composite-action refs use INCONSISTENT tags: \" + str(sorted(tags)))
+    sys.exit(1)
+if not tags:
+    print(\"OK — no self-referencing composite-action uses\")
+    sys.exit(0)
+tag = list(tags)[0]
+if tag == \"v2.0.0\":
+    print(\"FAIL — composite-action refs frozen at v2.0.0 (the original anti-pattern); bump to current version before tagging\")
+    sys.exit(1)
+print(\"OK — composite-action refs consistent at \" + tag)
 '"
 echo
 
