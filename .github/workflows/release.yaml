@@ -1,29 +1,23 @@
-# .github/workflows/release-android.yaml
+# .github/workflows/release.yaml
 #
-# ADDITIVE — reusable workflow for the Android promotion ladder.
-# Companion to existing android-build-and-publish.yaml + promote-to-production.yaml.
-# Existing workflows are UNCHANGED — community consumers using @v1.0.16 are unaffected.
+# Reusable workflow for the Android promotion ladder.
+#
+# Modes (since v2.0.10):
+#   standard          — original behavior: caller passes android secrets as
+#                       secrets:, action materializes + invokes lane with options
+#                       (root-level fastlane/Fastfile with `platform :android`).
+#   pre-materialized  — caller has the consumer's deployment/-layout per
+#                       RULE-DEPLOYMENT-MANIFEST-001. Wrapper runs the
+#                       consumer-provided `pre_fastlane_script` BEFORE the
+#                       composite action, then invokes the composite action with
+#                       `mode: pre-materialized` so it CDs to `fastlane_cwd` and
+#                       runs the lane without option overrides.
 #
 # Promotion model:
 #   Stage 0 (firebase)    — out-of-band dev/QA, no approval gate
 #   Stage 1 (internal)    — Play Internal track, 1 reviewer required
 #   Stage 2 (beta)        — Play Open Beta, 1 reviewer required (promote, no rebuild)
 #   Stage 3 (production)  — Play Production, 2 reviewers + wait timer (promote, no rebuild)
-#
-# Approval gates: GHA `environment:` protection rules (configured per-consumer-repo).
-#   environment: android-firebase            → no protection
-#   environment: android-play-internal       → 1 reviewer
-#   environment: android-play-beta           → 1 reviewer
-#   environment: android-play-production     → 2 reviewers + 30min wait timer
-#
-# Supersede semantics: concurrency.group=release-android + cancel-in-progress=true.
-# A NEW release run cancels any pending approvals on the previous run.
-#
-# Resume support: `starting_rung` input skips earlier stages (e.g. retry after
-# rung 3 failed but earlier rungs were fine).
-#
-# Composite refs use therajanmaurya/* during initial dev phase. Will rebind to
-# openMF/* at v2.0.0 tag (post-transfer).
 name: Release · Android (ladder)
 run-name: "🤖 Release Android ${{ inputs.version_tag }} · ladder→${{ inputs.starting_rung }}"
 
@@ -53,25 +47,42 @@ on:
         required: false
         type: string
         default: '0.10'
+      mode:
+        description: "'standard' (default) or 'pre-materialized'"
+        required: false
+        type: string
+        default: 'standard'
+      fastlane_cwd:
+        description: 'Working dir for fastlane (default `.`; set to `deployment` for RULE-DEPLOYMENT-MANIFEST-001 layout)'
+        required: false
+        type: string
+        default: '.'
+      pre_fastlane_script:
+        description: 'Optional bash to run after checkout, before composite action (used in pre-materialized mode for consumer secrets-pull etc.)'
+        required: false
+        type: string
+        default: ''
 
     secrets:
-      google_services:           { required: true }
-      firebase_creds:            { required: true }
-      playstore_creds:           { required: true }
-      upload_keystore:          { required: true }
-      keystore_password:         { required: true }
-      keystore_alias:            { required: true }
-      keystore_alias_password:   { required: true }
+      google_services:          { required: false }
+      firebase_creds:           { required: false }
+      playstore_creds:          { required: false }
+      upload_keystore:          { required: false }
+      keystore_password:        { required: false }
+      keystore_alias:           { required: false }
+      keystore_alias_password:  { required: false }
+      SOPS_AGE_KEY:             { required: false }
 
 concurrency:
   group: release-android
   cancel-in-progress: true
 
 jobs:
-  # Preflight: validate required secrets per rung — fail-fast in ~8s instead of
-  # dying deep in Gradle / Fastlane after 5-10 min with a confusing error.
+  # Preflight: validate required secrets per rung (standard mode only — in
+  # pre-materialized mode the consumer manages secrets via pre_fastlane_script).
   validate-secrets:
     name: Preflight · Validate required secrets
+    if: ${{ inputs.mode == 'standard' }}
     runs-on: ubuntu-latest
     steps:
       - name: Check android secrets per rung
@@ -105,16 +116,26 @@ jobs:
   stage-0-firebase:
     name: Stage 0 — Firebase App Distribution
     needs: [validate-secrets]
-    if: contains(fromJSON('["firebase","internal","beta","production"]'), inputs.starting_rung)
+    if: ${{ always() && !failure() && !cancelled() && contains(fromJSON('["firebase","internal","beta","production"]'), inputs.starting_rung) }}
     runs-on: ubuntu-latest
     environment: android-firebase
+    env:
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Pre-fastlane setup (consumer-provided, pre-materialized mode)
+        if: ${{ inputs.mode == 'pre-materialized' && inputs.pre_fastlane_script != '' }}
+        shell: bash
+        run: ${{ inputs.pre_fastlane_script }}
+
       - name: Publish to Firebase
-        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/firebase-distribution@v2.0.9
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/firebase-distribution@v2.0.10
         with:
           android_package_name:     ${{ inputs.android_package_name }}
           release_type:             prod
+          mode:                     ${{ inputs.mode }}
+          fastlane_cwd:             ${{ inputs.fastlane_cwd }}
           google_services:          ${{ secrets.google_services }}
           firebase_creds:           ${{ secrets.firebase_creds }}
           keystore_file:            ${{ secrets.upload_keystore }}
@@ -129,12 +150,22 @@ jobs:
     if: contains(fromJSON('["internal","beta","production"]'), inputs.starting_rung) && !cancelled() && !failure()
     runs-on: ubuntu-latest
     environment: android-play-internal
+    env:
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Pre-fastlane setup (consumer-provided, pre-materialized mode)
+        if: ${{ inputs.mode == 'pre-materialized' && inputs.pre_fastlane_script != '' }}
+        shell: bash
+        run: ${{ inputs.pre_fastlane_script }}
+
       - name: Upload to Play Internal
-        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/play-store-internal@v2.0.9
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/play-store-internal@v2.0.10
         with:
           android_package_name:     ${{ inputs.android_package_name }}
+          mode:                     ${{ inputs.mode }}
+          fastlane_cwd:             ${{ inputs.fastlane_cwd }}
           google_services:          ${{ secrets.google_services }}
           playstore_creds:          ${{ secrets.playstore_creds }}
           keystore_file:            ${{ secrets.upload_keystore }}
@@ -148,12 +179,22 @@ jobs:
     if: contains(fromJSON('["beta","production"]'), inputs.starting_rung) && !cancelled() && !failure()
     runs-on: ubuntu-latest
     environment: android-play-beta
+    env:
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Pre-fastlane setup (consumer-provided, pre-materialized mode)
+        if: ${{ inputs.mode == 'pre-materialized' && inputs.pre_fastlane_script != '' }}
+        shell: bash
+        run: ${{ inputs.pre_fastlane_script }}
+
       - name: Promote Internal → Beta
-        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-beta@v2.0.9
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-beta@v2.0.10
         with:
           android_package_name: ${{ inputs.android_package_name }}
+          mode:                 ${{ inputs.mode }}
+          fastlane_cwd:         ${{ inputs.fastlane_cwd }}
           playstore_creds:      ${{ secrets.playstore_creds }}
 
   stage-3-promote-to-production:
@@ -162,11 +203,21 @@ jobs:
     if: inputs.starting_rung == 'production' && !cancelled() && !failure()
     runs-on: ubuntu-latest
     environment: android-play-production
+    env:
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Pre-fastlane setup (consumer-provided, pre-materialized mode)
+        if: ${{ inputs.mode == 'pre-materialized' && inputs.pre_fastlane_script != '' }}
+        shell: bash
+        run: ${{ inputs.pre_fastlane_script }}
+
       - name: Promote Beta → Production (staged rollout)
-        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-production@v2.0.9
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-production@v2.0.10
         with:
           android_package_name: ${{ inputs.android_package_name }}
+          mode:                 ${{ inputs.mode }}
+          fastlane_cwd:         ${{ inputs.fastlane_cwd }}
           playstore_creds:      ${{ secrets.playstore_creds }}
           rollout:              ${{ inputs.production_rollout }}
