@@ -121,18 +121,21 @@ jobs:
   stage-0-firebase:
     name: Stage 0 — Firebase App Distribution
     needs: [validate-secrets]
-    if: ${{ always() && !failure() && !cancelled() && contains(fromJSON('["firebase","internal","beta","production"]'), inputs.starting_rung) }}
+    # 2026-06-19: was contains(["firebase","internal","beta","production"], starting_rung) — that made Stage 0 run for ANY rung, causing duplicate Firebase distribution when the orchestrator also calls this chain via the separate android-firebase job. Tightened to only `firebase`; android_target=internal/beta/production now bypass Firebase entirely (orchestrator's separate android-firebase job handles distribution when explicitly requested via android_target=firebase+internal/firebase).
+    if: ${{ always() && !failure() && !cancelled() && inputs.starting_rung == 'firebase' }}
     runs-on: ${{ fromJSON(inputs.runner_pool) }}
     environment: android-firebase
     env:
-      SOPS_AGE_KEY:            ${{ secrets.SOPS_AGE_KEY }}
-      UPLOAD_KEYSTORE_B64:     ${{ secrets.upload_keystore }}
-      KEYSTORE_PASSWORD:       ${{ secrets.keystore_password }}
-      KEYSTORE_ALIAS:          ${{ secrets.keystore_alias }}
-      KEYSTORE_ALIAS_PASSWORD: ${{ secrets.keystore_alias_password }}
-      GOOGLE_SERVICES_B64:     ${{ secrets.google_services }}
-      FIREBASE_CREDS_B64:      ${{ secrets.firebase_creds }}
-      PLAYSTORE_CREDS_B64:     ${{ secrets.playstore_creds }}
+      SOPS_AGE_KEY:                 ${{ secrets.SOPS_AGE_KEY }}
+      UPLOAD_KEYSTORE_B64:          ${{ secrets.upload_keystore }}
+      KEYSTORE_PASSWORD:            ${{ secrets.keystore_password }}
+      KEYSTORE_ALIAS:               ${{ secrets.keystore_alias }}
+      KEYSTORE_ALIAS_PASSWORD:      ${{ secrets.keystore_alias_password }}
+      GOOGLE_SERVICES_B64:          ${{ secrets.google_services }}
+      FIREBASE_CREDS_B64:           ${{ secrets.firebase_creds }}
+      PLAYSTORE_CREDS_B64:          ${{ secrets.playstore_creds }}
+      FIREBASE_ANDROID_APP_ID:      ${{ secrets.firebase_android_app_id }}
+      FIREBASE_ANDROID_DEMO_APP_ID: ${{ secrets.firebase_android_demo_app_id }}
     steps:
       - uses: actions/checkout@v4
 
@@ -158,8 +161,9 @@ jobs:
 
   stage-1-play-internal:
     name: Stage 1 — Play Internal (approval required)
-    needs: [stage-0-firebase]
-    if: contains(fromJSON('["internal","beta","production"]'), inputs.starting_rung) && !cancelled() && !failure()
+    needs: [validate-secrets, stage-0-firebase]
+    # 2026-06-19: added validate-secrets to needs so Stage 1 doesn't depend solely on Stage 0 (which now skips for non-firebase rungs). `always()` lets Stage 1 run when Stage 0 is skipped (always() = true regardless of skipped dependency, !failure() still gates real failures).
+    if: ${{ always() && !cancelled() && !failure() && contains(fromJSON('["internal","beta","production"]'), inputs.starting_rung) }}
     runs-on: ${{ fromJSON(inputs.runner_pool) }}
     environment: android-play-internal
     env:
