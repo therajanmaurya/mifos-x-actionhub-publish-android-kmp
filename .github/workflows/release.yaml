@@ -76,6 +76,12 @@ on:
       keystore_password:        { required: false }
       keystore_alias:           { required: false }
       keystore_alias_password:  { required: false }
+      # Firebase App Distribution app ids — referenced by the stage-0-firebase
+      # job env (FIREBASE_ANDROID_APP_ID); must be DECLARED so explicit cross-org
+      # forwarding from the orchestrator delivers them (secrets: inherit does not
+      # cross org boundaries — mifos-x 2026-06-21 pipeline fix).
+      firebase_android_app_id:      { required: false }
+      firebase_android_demo_app_id: { required: false }
       SOPS_AGE_KEY:             { required: false }
 
 concurrency:
