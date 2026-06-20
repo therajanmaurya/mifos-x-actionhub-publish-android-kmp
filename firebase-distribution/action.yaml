@@ -97,15 +97,15 @@ runs:
       shell: bash
       env:
         KEYSTORE_PASSWORD: ${{ inputs.keystore_password }}
-        KEYSTORE_ALIAS: ${{ inputs.keystore_alias }}
-        KEYSTORE_ALIAS_PASSWORD: ${{ inputs.keystore_alias_password }}
+        KEY_ALIAS: ${{ inputs.keystore_alias }}
+        KEY_PASSWORD: ${{ inputs.keystore_alias_password }}
         TESTER_GROUPS: ${{ inputs.tester_groups }}
       run: |
         bundle exec fastlane android deployReleaseApkOnFirebase \
           storeFile:upload_keystore.keystore \
           storePassword:"$KEYSTORE_PASSWORD" \
-          keyAlias:"$KEYSTORE_ALIAS" \
-          keyPassword:"$KEYSTORE_ALIAS_PASSWORD" \
+          keyAlias:"$KEY_ALIAS" \
+          keyPassword:"$KEY_PASSWORD" \
           groups:"$TESTER_GROUPS"
 
     - name: Deploy to Firebase (standard, demo)
@@ -113,15 +113,15 @@ runs:
       shell: bash
       env:
         KEYSTORE_PASSWORD: ${{ inputs.keystore_password }}
-        KEYSTORE_ALIAS: ${{ inputs.keystore_alias }}
-        KEYSTORE_ALIAS_PASSWORD: ${{ inputs.keystore_alias_password }}
+        KEY_ALIAS: ${{ inputs.keystore_alias }}
+        KEY_PASSWORD: ${{ inputs.keystore_alias_password }}
         TESTER_GROUPS: ${{ inputs.tester_groups }}
       run: |
         bundle exec fastlane android deployDemoApkOnFirebase \
           storeFile:upload_keystore.keystore \
           storePassword:"$KEYSTORE_PASSWORD" \
-          keyAlias:"$KEYSTORE_ALIAS" \
-          keyPassword:"$KEYSTORE_ALIAS_PASSWORD" \
+          keyAlias:"$KEY_ALIAS" \
+          keyPassword:"$KEY_PASSWORD" \
           groups:"$TESTER_GROUPS"
 
     - name: Cleanup secrets (standard mode)

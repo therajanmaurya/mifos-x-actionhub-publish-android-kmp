@@ -25,7 +25,7 @@
 #
 set -euo pipefail
 
-mkdir -p secrets keystores
+mkdir -p secrets/keystores secrets/firebase
 
 # Google Services
 if [[ -n "${GOOGLE_SERVICES:-}" ]]; then
@@ -35,7 +35,7 @@ fi
 # Upload keystore (Play App Signing: Google holds app signing key in KMS;
 # the developer only ever holds the upload key, which signs AABs pre-upload)
 if [[ -n "${KEYSTORE:-}" ]]; then
-  echo "$KEYSTORE" | base64 --decode > keystores/upload_keystore.keystore
+  echo "$KEYSTORE" | base64 --decode > secrets/keystores/upload_keystore.keystore
 fi
 
 # Per-flag credentials
@@ -43,7 +43,7 @@ for arg in "$@"; do
   case "$arg" in
     --firebase)
       if [[ -n "${FIREBASE_CREDS:-}" ]]; then
-        echo "$FIREBASE_CREDS" | base64 --decode > secrets/firebaseAppDistributionServiceCredentialsFile.json
+        echo "$FIREBASE_CREDS" | base64 --decode > secrets/firebase/service-account.json
       fi
       ;;
     --playstore)
