@@ -20,7 +20,7 @@
 # Promotion model (Play only — Firebase lives in release-firebase.yaml):
 #   Stage 1 (internal)    — Play Internal track, 1 reviewer required
 #   Stage 2 (beta)        — Play Open Beta, 1 reviewer required (promote, no rebuild)
-#   Stage 3 (production)  — Play Production, 2 reviewers + wait timer (promote, no rebuild)
+#   Stage 3 (production)  — Play Production, 1 reviewer required (promote, no rebuild)
 name: Release · Android (Play ladder)
 run-name: "🤖 Release Android ${{ inputs.version_tag }} · Play→${{ inputs.starting_rung }}"
 
@@ -202,7 +202,7 @@ jobs:
           playstore_creds:      ${{ secrets.playstore_creds }}
 
   stage-3-promote-to-production:
-    name: Stage 3 — Promote to Production (2 reviewers + wait timer, no rebuild)
+    name: Stage 3 — Promote to Production (approval required, no rebuild)
     needs: [stage-2-promote-to-beta]
     if: inputs.starting_rung == 'production' && !cancelled() && !failure()
     runs-on: ${{ fromJSON(inputs.runner_pool) }}
