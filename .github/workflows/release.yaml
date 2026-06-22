@@ -85,7 +85,9 @@ on:
       SOPS_AGE_KEY:             { required: false }
 
 concurrency:
-  group: release-android
+  # per-rung group — firebase (APK side-channel) and internal/beta/production (Play AAB) are
+  # INDEPENDENT; a shared group made `firebase+internal` cancel itself. (epic finding 2026-06-22)
+  group: release-android-${{ inputs.starting_rung }}
   cancel-in-progress: true
 
 jobs:
