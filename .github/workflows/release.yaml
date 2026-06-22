@@ -95,7 +95,9 @@ jobs:
   # pre-materialized mode the consumer manages secrets via pre_fastlane_script).
   validate-secrets:
     name: Preflight · Validate required secrets
-    if: ${{ inputs.mode == 'standard' }}
+    # Runs in BOTH standard and pre-materialized modes — the secrets it checks are forwarded
+    # explicitly at every hop regardless of mode, so secret verification is NEVER skipped.
+    # (user mandate 2026-06-22 "always verify secrets, never skip"; was: if mode == 'standard')
     runs-on: ${{ fromJSON(inputs.runner_pool) }}
     steps:
       - name: Check android secrets per rung
