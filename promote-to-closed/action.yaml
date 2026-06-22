@@ -1,0 +1,61 @@
+# Sub-action: promote-to-closed — Stage 1b (Internal → Closed/Alpha, no rebuild)
+# Part of therajanmaurya/mifos-x-actionhub-publish-android-kmp
+name: 'KMP Publish Android — Promote to Closed/Alpha (Stage 1b)'
+description: 'Promote AAB from Play Internal track to Closed testing (alpha) track (no rebuild).'
+author: 'Mifos Initiative'
+branding:
+  icon: 'fast-forward'
+  color: 'orange'
+
+inputs:
+  android_package_name:
+    required: true
+    description: 'Android Gradle module name (used to locate Fastlane appfile context)'
+  mode:
+    required: false
+    default: 'standard'
+    description: "'standard' or 'pre-materialized'"
+  fastlane_cwd:
+    required: false
+    default: '.'
+    description: 'Working dir for fastlane (RULE-DEPLOYMENT-MANIFEST-001: set to `deployment`)'
+  playstore_creds:
+    required: false
+    default: ''
+    description: 'Base64-encoded Play Store SA JSON. Ignored when mode=pre-materialized.'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@afeafc3d1ab54a631816aba4c914a0081c12ff2f  # v1.232.0
+      with:
+        bundler-cache: true
+        working-directory: ${{ inputs.fastlane_cwd }}
+
+    # ─── STANDARD MODE ─────────────────────────────────────────────────────
+    - name: Materialize Play Store creds (standard mode)
+      if: ${{ inputs.mode == 'standard' }}
+      shell: bash
+      env:
+        PLAYSTORE_CREDS: ${{ inputs.playstore_creds }}
+      run: |
+        mkdir -p secrets
+        echo "$PLAYSTORE_CREDS" | base64 --decode > secrets/playStorePublishServiceCredentialsFile.json
+
+    - name: Promote Internal → Closed/Alpha (standard mode)
+      if: ${{ inputs.mode == 'standard' }}
+      shell: bash
+      run: bundle exec fastlane android promoteToClosed
+
+    - name: Cleanup secrets (standard mode)
+      if: ${{ always() && inputs.mode == 'standard' }}
+      shell: bash
+      run: rm -rf secrets
+
+    # ─── PRE-MATERIALIZED MODE ─────────────────────────────────────────────
+    - name: Promote Internal → Closed/Alpha (pre-materialized mode)
+      if: ${{ inputs.mode == 'pre-materialized' }}
+      shell: bash
+      working-directory: ${{ inputs.fastlane_cwd }}
+      run: bundle exec fastlane android promoteToClosed

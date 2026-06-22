@@ -182,7 +182,7 @@ jobs:
     # 2026-06-22 split. Play and Firebase are independent channels (firebase ∥ play, epic D2),
     # so the Play ladder no longer carries a Firebase node and Stage 1 depends only on
     # validate-secrets. This keeps the Play graph clean: validate → internal → beta → prod.
-    if: ${{ always() && !cancelled() && !failure() && contains(fromJSON('["internal","beta","production"]'), inputs.starting_rung) }}
+    if: ${{ always() && !cancelled() && !failure() && contains(fromJSON('["internal","closed","beta","production"]'), inputs.starting_rung) }}
     runs-on: ${{ fromJSON(inputs.runner_pool) }}
     environment: android-play-internal
     env:
@@ -215,9 +215,43 @@ jobs:
           keystore_alias:           ${{ secrets.keystore_alias }}
           keystore_alias_password:  ${{ secrets.keystore_alias_password }}
 
+  stage-1b-play-closed:
+    name: Stage 1b — Promote to Closed/Alpha (approval required, no rebuild)
+    needs: [stage-1-play-internal]
+    # Closed testing (alpha) sits between internal and beta. Promotes the internal release to
+    # the alpha track (no rebuild). Runs for closed/beta/production rungs so the ladder is
+    # internal → closed → beta → production. (2026-06-22)
+    if: contains(fromJSON('["closed","beta","production"]'), inputs.starting_rung) && !cancelled() && !failure()
+    runs-on: ${{ fromJSON(inputs.runner_pool) }}
+    environment: android-play-closed
+    env:
+      SOPS_AGE_KEY:            ${{ secrets.SOPS_AGE_KEY }}
+      UPLOAD_KEYSTORE_B64:     ${{ secrets.upload_keystore }}
+      KEYSTORE_PASSWORD:       ${{ secrets.keystore_password }}
+      KEYSTORE_ALIAS:          ${{ secrets.keystore_alias }}
+      KEYSTORE_ALIAS_PASSWORD: ${{ secrets.keystore_alias_password }}
+      GOOGLE_SERVICES_B64:     ${{ secrets.google_services }}
+      FIREBASE_CREDS_B64:      ${{ secrets.firebase_creds }}
+      PLAYSTORE_CREDS_B64:     ${{ secrets.playstore_creds }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pre-fastlane setup (consumer-provided, pre-materialized mode)
+        if: ${{ inputs.mode == 'pre-materialized' && inputs.pre_fastlane_script != '' }}
+        shell: bash
+        run: ${{ inputs.pre_fastlane_script }}
+
+      - name: Promote Internal → Closed/Alpha
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-closed@v2.0.20
+        with:
+          android_package_name: ${{ inputs.android_package_name }}
+          mode:                 ${{ inputs.mode }}
+          fastlane_cwd:         ${{ inputs.fastlane_cwd }}
+          playstore_creds:      ${{ secrets.playstore_creds }}
+
   stage-2-promote-to-beta:
     name: Stage 2 — Promote to Open Beta (approval required, no rebuild)
-    needs: [stage-1-play-internal]
+    needs: [stage-1b-play-closed]
     if: contains(fromJSON('["beta","production"]'), inputs.starting_rung) && !cancelled() && !failure()
     runs-on: ${{ fromJSON(inputs.runner_pool) }}
     environment: android-play-beta
