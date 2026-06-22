@@ -1,0 +1,146 @@
+# .github/workflows/release-firebase.yaml
+#
+# Reusable workflow for the Android FIREBASE channel ONLY (Stage 0 — App Distribution).
+#
+# SPLIT FROM release.yaml (2026-06-22): Firebase (APK side-channel) and Play (AAB ladder)
+# are INDEPENDENT channels — Firebase is never a promotion source for Play. They used to
+# live in one workflow file, which made the Play invocation render a skipped "Stage 0 —
+# Firebase" node in its graph (single workflow → GitHub renders all its jobs). Splitting
+# them gives each channel a CLEAN graph:
+#   release-firebase.yaml  →  validate-secrets → Stage 0 Firebase
+#   release.yaml           →  validate-secrets → Stage 1 Internal → Stage 2 Beta → Stage 3 Prod
+# (epic multi-platform-release-completion — firebase ∥ play decision D2)
+#
+# Modes (since v2.0.10): 'standard' | 'pre-materialized' — see release.yaml header.
+name: Release · Android (firebase)
+run-name: "🤖 Release Android ${{ inputs.version_tag }} · firebase"
+
+on:
+  workflow_call:
+    inputs:
+      android_package_name:
+        description: 'Android Gradle module (e.g. cmp-android)'
+        required: true
+        type: string
+      version_tag:
+        description: 'Version tag (e.g. v2026.06.15)'
+        required: true
+        type: string
+      tester_groups:
+        description: 'Firebase tester groups (comma-separated)'
+        required: false
+        type: string
+        default: 'qa-team,beta-testers'
+      mode:
+        description: "'standard' (default) or 'pre-materialized'"
+        required: false
+        type: string
+        default: 'standard'
+      fastlane_cwd:
+        description: 'Working dir for fastlane (default `.`; set to `deployment` for RULE-DEPLOYMENT-MANIFEST-001 layout)'
+        required: false
+        type: string
+        default: '.'
+      pre_fastlane_script:
+        description: 'Optional bash to run after checkout, before composite action (pre-materialized mode)'
+        required: false
+        type: string
+        default: ''
+      runner_pool:
+        description: 'JSON array of runner labels for runs-on. Default `["ubuntu-latest"]`.'
+        required: false
+        type: string
+        default: '["ubuntu-latest"]'
+
+    secrets:
+      google_services:          { required: false }
+      firebase_creds:           { required: false }
+      upload_keystore:          { required: false }
+      keystore_password:        { required: false }
+      keystore_alias:           { required: false }
+      keystore_alias_password:  { required: false }
+      # Firebase App Distribution app ids — referenced by stage-0-firebase env; must be
+      # DECLARED so explicit cross-org forwarding delivers them (secrets: inherit does not
+      # cross org boundaries — mifos-x 2026-06-21 pipeline fix).
+      firebase_android_app_id:      { required: false }
+      firebase_android_demo_app_id: { required: false }
+      SOPS_AGE_KEY:             { required: false }
+
+concurrency:
+  # Firebase has its own group — independent from the Play ladder's groups so the two
+  # channels never cancel each other.
+  group: release-android-firebase
+  cancel-in-progress: true
+
+jobs:
+  # Preflight: validate the secrets Firebase needs. Runs in BOTH modes — secret
+  # verification is NEVER skipped (user mandate 2026-06-22 "always verify, never skip").
+  validate-secrets:
+    name: Preflight · Validate required secrets
+    runs-on: ${{ fromJSON(inputs.runner_pool) }}
+    steps:
+      - name: Check android firebase secrets
+        env:
+          google_services:         ${{ secrets.google_services }}
+          firebase_creds:          ${{ secrets.firebase_creds }}
+          upload_keystore:         ${{ secrets.upload_keystore }}
+          keystore_password:       ${{ secrets.keystore_password }}
+          keystore_alias:          ${{ secrets.keystore_alias }}
+          keystore_alias_password: ${{ secrets.keystore_alias_password }}
+        run: |
+          MISSING=()
+          [[ -z "${google_services:-}" ]]         && MISSING+=("google_services")
+          [[ -z "${upload_keystore:-}" ]]         && MISSING+=("upload_keystore")
+          [[ -z "${keystore_password:-}" ]]       && MISSING+=("keystore_password")
+          [[ -z "${keystore_alias:-}" ]]          && MISSING+=("keystore_alias")
+          [[ -z "${keystore_alias_password:-}" ]] && MISSING+=("keystore_alias_password")
+          [[ -z "${firebase_creds:-}" ]]          && MISSING+=("firebase_creds")
+          if [[ ${#MISSING[@]} -gt 0 ]]; then
+            echo "❌ Android Firebase requires these secrets, but they are MISSING:"
+            printf '   - %s\n' "${MISSING[@]}"
+            echo ""
+            echo "Set them in your repo's Settings → Secrets and variables → Actions:"
+            for s in "${MISSING[@]}"; do echo "   gh secret set $s --repo \${{ github.repository }}"; done
+            exit 1
+          fi
+          echo "✅ Android firebase secrets present"
+
+  stage-0-firebase:
+    name: Stage 0 — Firebase App Distribution
+    needs: [validate-secrets]
+    # No rung gate — this workflow IS the firebase channel, so Stage 0 always runs.
+    if: ${{ always() && !failure() && !cancelled() }}
+    runs-on: ${{ fromJSON(inputs.runner_pool) }}
+    environment: android-firebase
+    env:
+      SOPS_AGE_KEY:                 ${{ secrets.SOPS_AGE_KEY }}
+      UPLOAD_KEYSTORE_B64:          ${{ secrets.upload_keystore }}
+      KEYSTORE_PASSWORD:            ${{ secrets.keystore_password }}
+      KEYSTORE_ALIAS:               ${{ secrets.keystore_alias }}
+      KEYSTORE_ALIAS_PASSWORD:      ${{ secrets.keystore_alias_password }}
+      GOOGLE_SERVICES_B64:          ${{ secrets.google_services }}
+      FIREBASE_CREDS_B64:           ${{ secrets.firebase_creds }}
+      FIREBASE_ANDROID_APP_ID:      ${{ secrets.firebase_android_app_id }}
+      FIREBASE_ANDROID_DEMO_APP_ID: ${{ secrets.firebase_android_demo_app_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pre-fastlane setup (consumer-provided, pre-materialized mode)
+        if: ${{ inputs.mode == 'pre-materialized' && inputs.pre_fastlane_script != '' }}
+        shell: bash
+        run: ${{ inputs.pre_fastlane_script }}
+
+      - name: Publish to Firebase
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/firebase-distribution@v2.0.12
+        with:
+          android_package_name:     ${{ inputs.android_package_name }}
+          release_type:             prod
+          mode:                     ${{ inputs.mode }}
+          fastlane_cwd:             ${{ inputs.fastlane_cwd }}
+          google_services:          ${{ secrets.google_services }}
+          firebase_creds:           ${{ secrets.firebase_creds }}
+          keystore_file:            ${{ secrets.upload_keystore }}
+          keystore_password:        ${{ secrets.keystore_password }}
+          keystore_alias:           ${{ secrets.keystore_alias }}
+          keystore_alias_password:  ${{ secrets.keystore_alias_password }}
+          tester_groups:            ${{ inputs.tester_groups }}

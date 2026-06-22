@@ -1,6 +1,10 @@
 # .github/workflows/release.yaml
 #
-# Reusable workflow for the Android promotion ladder.
+# Reusable workflow for the Android PLAY STORE promotion ladder (internal → beta → production).
+# Firebase App Distribution is a SEPARATE workflow — release-firebase.yaml — since the
+# 2026-06-22 split (firebase ∥ play, epic multi-platform-release-completion D2). This file
+# no longer contains any Firebase job, so the Play invocation renders a CLEAN graph with no
+# skipped Firebase node.
 #
 # Modes (since v2.0.10):
 #   standard          — original behavior: caller passes android secrets as
@@ -13,13 +17,12 @@
 #                       `mode: pre-materialized` so it CDs to `fastlane_cwd` and
 #                       runs the lane without option overrides.
 #
-# Promotion model:
-#   Stage 0 (firebase)    — out-of-band dev/QA, no approval gate
+# Promotion model (Play only — Firebase lives in release-firebase.yaml):
 #   Stage 1 (internal)    — Play Internal track, 1 reviewer required
 #   Stage 2 (beta)        — Play Open Beta, 1 reviewer required (promote, no rebuild)
 #   Stage 3 (production)  — Play Production, 2 reviewers + wait timer (promote, no rebuild)
-name: Release · Android (ladder)
-run-name: "🤖 Release Android ${{ inputs.version_tag }} · ladder→${{ inputs.starting_rung }}"
+name: Release · Android (Play ladder)
+run-name: "🤖 Release Android ${{ inputs.version_tag }} · Play→${{ inputs.starting_rung }}"
 
 on:
   workflow_call:
@@ -76,10 +79,10 @@ on:
       keystore_password:        { required: false }
       keystore_alias:           { required: false }
       keystore_alias_password:  { required: false }
-      # Firebase App Distribution app ids — referenced by the stage-0-firebase
-      # job env (FIREBASE_ANDROID_APP_ID); must be DECLARED so explicit cross-org
-      # forwarding from the orchestrator delivers them (secrets: inherit does not
-      # cross org boundaries — mifos-x 2026-06-21 pipeline fix).
+      # Firebase App Distribution app ids — Firebase moved to release-firebase.yaml in the
+      # 2026-06-22 split, so these are UNUSED here. Kept DECLARED only so the orchestrator's
+      # explicit cross-org forwarding never hits an "undeclared secret" error if it still
+      # passes them (secrets: inherit does not cross org boundaries — mifos-x 2026-06-21 fix).
       firebase_android_app_id:      { required: false }
       firebase_android_demo_app_id: { required: false }
       SOPS_AGE_KEY:             { required: false }
@@ -116,7 +119,6 @@ jobs:
           [[ -z "${keystore_password:-}" ]]       && MISSING+=("keystore_password")
           [[ -z "${keystore_alias:-}" ]]          && MISSING+=("keystore_alias")
           [[ -z "${keystore_alias_password:-}" ]] && MISSING+=("keystore_alias_password")
-          [[ "${{ inputs.starting_rung }}" =~ ^(firebase|internal|beta|production)$ ]] && [[ -z "${firebase_creds:-}" ]] && MISSING+=("firebase_creds")
           [[ "${{ inputs.starting_rung }}" =~ ^(internal|beta|production)$ ]] && [[ -z "${playstore_creds:-}" ]] && MISSING+=("playstore_creds")
           if [[ ${#MISSING[@]} -gt 0 ]]; then
             echo "❌ Android ladder→${{ inputs.starting_rung }} requires these secrets, but they are MISSING:"
@@ -128,51 +130,13 @@ jobs:
           fi
           echo "✅ Android secrets present"
 
-  stage-0-firebase:
-    name: Stage 0 — Firebase App Distribution
-    needs: [validate-secrets]
-    # 2026-06-19: was contains(["firebase","internal","beta","production"], starting_rung) — that made Stage 0 run for ANY rung, causing duplicate Firebase distribution when the orchestrator also calls this chain via the separate android-firebase job. Tightened to only `firebase`; android_target=internal/beta/production now bypass Firebase entirely (orchestrator's separate android-firebase job handles distribution when explicitly requested via android_target=firebase+internal/firebase).
-    if: ${{ always() && !failure() && !cancelled() && inputs.starting_rung == 'firebase' }}
-    runs-on: ${{ fromJSON(inputs.runner_pool) }}
-    environment: android-firebase
-    env:
-      SOPS_AGE_KEY:                 ${{ secrets.SOPS_AGE_KEY }}
-      UPLOAD_KEYSTORE_B64:          ${{ secrets.upload_keystore }}
-      KEYSTORE_PASSWORD:            ${{ secrets.keystore_password }}
-      KEYSTORE_ALIAS:               ${{ secrets.keystore_alias }}
-      KEYSTORE_ALIAS_PASSWORD:      ${{ secrets.keystore_alias_password }}
-      GOOGLE_SERVICES_B64:          ${{ secrets.google_services }}
-      FIREBASE_CREDS_B64:           ${{ secrets.firebase_creds }}
-      PLAYSTORE_CREDS_B64:          ${{ secrets.playstore_creds }}
-      FIREBASE_ANDROID_APP_ID:      ${{ secrets.firebase_android_app_id }}
-      FIREBASE_ANDROID_DEMO_APP_ID: ${{ secrets.firebase_android_demo_app_id }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Pre-fastlane setup (consumer-provided, pre-materialized mode)
-        if: ${{ inputs.mode == 'pre-materialized' && inputs.pre_fastlane_script != '' }}
-        shell: bash
-        run: ${{ inputs.pre_fastlane_script }}
-
-      - name: Publish to Firebase
-        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/firebase-distribution@v2.0.12
-        with:
-          android_package_name:     ${{ inputs.android_package_name }}
-          release_type:             prod
-          mode:                     ${{ inputs.mode }}
-          fastlane_cwd:             ${{ inputs.fastlane_cwd }}
-          google_services:          ${{ secrets.google_services }}
-          firebase_creds:           ${{ secrets.firebase_creds }}
-          keystore_file:            ${{ secrets.upload_keystore }}
-          keystore_password:        ${{ secrets.keystore_password }}
-          keystore_alias:           ${{ secrets.keystore_alias }}
-          keystore_alias_password:  ${{ secrets.keystore_alias_password }}
-          tester_groups:            ${{ inputs.tester_groups }}
-
   stage-1-play-internal:
     name: Stage 1 — Play Internal (approval required)
-    needs: [validate-secrets, stage-0-firebase]
-    # 2026-06-19: added validate-secrets to needs so Stage 1 doesn't depend solely on Stage 0 (which now skips for non-firebase rungs). `always()` lets Stage 1 run when Stage 0 is skipped (always() = true regardless of skipped dependency, !failure() still gates real failures).
+    needs: [validate-secrets]
+    # Firebase (Stage 0) is a SEPARATE workflow now — release-firebase.yaml — since the
+    # 2026-06-22 split. Play and Firebase are independent channels (firebase ∥ play, epic D2),
+    # so the Play ladder no longer carries a Firebase node and Stage 1 depends only on
+    # validate-secrets. This keeps the Play graph clean: validate → internal → beta → prod.
     if: ${{ always() && !cancelled() && !failure() && contains(fromJSON('["internal","beta","production"]'), inputs.starting_rung) }}
     runs-on: ${{ fromJSON(inputs.runner_pool) }}
     environment: android-play-internal
