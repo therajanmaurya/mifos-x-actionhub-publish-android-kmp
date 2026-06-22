@@ -130,9 +130,54 @@ jobs:
           fi
           echo "✅ Android secrets present"
 
+  # Store-listing preflight — CI mirror of /release STEP 1.7. Lives HERE in the reusable
+  # workflow (not in each consumer) so EVERY consumer inherits it. Validates the Play Store
+  # listing metadata is present + within char limits BEFORE the gated build runs, so the Play
+  # API never rejects "missing required field: title". (2026-06-22)
+  validate-store-listing:
+    name: Preflight · Store Listing
+    runs-on: ${{ fromJSON(inputs.runner_pool) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pre-fastlane setup (consumer-provided, pre-materialized mode)
+        if: ${{ inputs.mode == 'pre-materialized' && inputs.pre_fastlane_script != '' }}
+        shell: bash
+        run: ${{ inputs.pre_fastlane_script }}
+      - name: Validate Play Store listing metadata
+        shell: bash
+        run: |
+          # Resolve metadata dir — deployment-tree (RULE-DEPLOYMENT-MANIFEST) first, then legacy.
+          DIR=""
+          for D in deployment/android/metadata/en-US fastlane/metadata/android/en-US; do
+            [ -d "$D" ] && DIR="$D" && break
+          done
+          if [ -z "$DIR" ]; then
+            echo "❌ No Play Store listing metadata (deployment/android/metadata/en-US or fastlane/metadata/android/en-US)."
+            echo "   The Play API rejects uploads without title/description. Generate it with /release STEP 1.7."
+            exit 1
+          fi
+          echo "🔎 Play Store listing preflight · $DIR"; echo ""
+          FAIL=0
+          clen() { if [ -f "$1" ]; then printf '%s' "$(cat "$1")" | wc -m | tr -d ' '; else echo 0; fi; }
+          check() {
+            local file="$DIR/$1" max="$2" label="$3" sev="${4:-hard}" len
+            if [ ! -f "$file" ]; then [ "$sev" = hard ] && { echo "❌ $label — MISSING ($1)"; FAIL=1; } || echo "⚠️  $label — missing ($1); generated at deploy"; return; fi
+            len=$(clen "$file")
+            if [ "$len" -eq 0 ]; then [ "$sev" = hard ] && { echo "❌ $label — EMPTY ($1)"; FAIL=1; } || echo "⚠️  $label — empty ($1); generated at deploy"; return; fi
+            if [ "$len" -gt "$max" ]; then echo "❌ $label — $len chars > $max limit ($1)"; FAIL=1; return; fi
+            echo "✅ $label — $len/$max chars"
+          }
+          check title.txt              30 "Title"             hard
+          check short_description.txt   80 "Short description" hard
+          check full_description.txt  4000 "Full description"  hard
+          check changelogs/default.txt 500 "Changelog"         soft
+          echo ""
+          if [ "$FAIL" -ne 0 ]; then echo "❌ Store-listing preflight FAILED — fix the fields above before deploying."; exit 1; fi
+          echo "✅ Store-listing preflight PASSED"
+
   stage-1-play-internal:
     name: Stage 1 — Play Internal (approval required)
-    needs: [validate-secrets]
+    needs: [validate-secrets, validate-store-listing]
     # Firebase (Stage 0) is a SEPARATE workflow now — release-firebase.yaml — since the
     # 2026-06-22 split. Play and Firebase are independent channels (firebase ∥ play, epic D2),
     # so the Play ladder no longer carries a Firebase node and Stage 1 depends only on
