@@ -22,6 +22,11 @@ on:
         description: 'Android Gradle module (e.g. cmp-android)'
         required: true
         type: string
+      application_id:
+        description: 'Android applicationId (e.g. org.mifos.kmp.template) — enables the app-id↔package preflight match in validate-secrets'
+        required: false
+        type: string
+        default: ''
       version_tag:
         description: 'Version tag (e.g. v2026.06.15)'
         required: true
@@ -84,6 +89,7 @@ jobs:
           google_services:         ${{ secrets.google_services }}
           firebase_creds:          ${{ secrets.firebase_creds }}
           firebase_android_app_id: ${{ secrets.firebase_android_app_id }}
+          application_id:          ${{ inputs.application_id }}
           upload_keystore:         ${{ secrets.upload_keystore }}
           keystore_password:       ${{ secrets.keystore_password }}
           keystore_alias:          ${{ secrets.keystore_alias }}
@@ -106,6 +112,46 @@ jobs:
             exit 1
           fi
           echo "✅ Android firebase secrets present"
+
+          # ── Deep validation (beyond presence) — fail fast BEFORE the ~6-min build ──────────
+          # Mirrors Play (google_play_track_version_codes) + iOS (latest_testflight_build_number)
+          # pre-build validation. Catches the 2026-06-24 incident class (stale FIREBASE_ANDROID_APP_ID
+          # pointing at the old cmp.android.app app → upload rejected on package mismatch).
+
+          # FB-PRE-1 — service account is a real Firebase SA (decode base64, must be JSON w/ identity)
+          if ! echo "$firebase_creds" | base64 -d 2>/dev/null | jq -e '.client_email and .project_id' >/dev/null 2>&1; then
+            echo "❌ FB-PRE-1: firebase_creds is not a valid service-account JSON (missing client_email/project_id, or not base64)."
+            exit 1
+          fi
+
+          # FB-PRE-2 — app id is well-formed (1:<project-number>:android:<hex>)
+          if ! [[ "$firebase_android_app_id" =~ ^1:[0-9]+:android:[0-9a-f]+$ ]]; then
+            echo "❌ FB-PRE-2: firebase_android_app_id '$firebase_android_app_id' is malformed — expected 1:<project-number>:android:<hex>."
+            exit 1
+          fi
+
+          # FB-PRE-3 — app id ↔ package match (needs application_id; decodes google_services)
+          if [[ -n "${application_id:-}" ]]; then
+            REGISTERED="$(echo "$google_services" | base64 -d 2>/dev/null \
+              | jq -r --arg pkg "$application_id" \
+                  '.client[]? | select(.client_info.android_client_info.package_name==$pkg) | .client_info.mobilesdk_app_id' \
+              | head -1)"
+            if [[ -z "$REGISTERED" ]]; then
+              echo "⚠️ FB-PRE-3: google-services.json has no entry for applicationId '$application_id' — skipping app-id↔package match (regenerate google-services.json from Firebase)."
+            elif [[ "$REGISTERED" != "$firebase_android_app_id" ]]; then
+              echo "❌ FB-PRE-3: App ID MISMATCH for package '$application_id'."
+              echo "     firebase_android_app_id (used for upload) : $firebase_android_app_id"
+              echo "     google-services.json registered           : $REGISTERED"
+              echo "   The APK package will not match the Firebase app and the App Distribution upload"
+              echo "   would be rejected ('package name does not match your Firebase app'). Point"
+              echo "   firebase_android_app_id at $REGISTERED, or refresh google-services.json from Firebase."
+              exit 1
+            else
+              echo "✅ FB-PRE-3: App ID matches package '$application_id' ($firebase_android_app_id)"
+            fi
+          else
+            echo "ℹ️ FB-PRE-3: application_id not provided — app-id↔package match skipped (presence + format + SA validated)."
+          fi
 
   stage-0-firebase:
     name: Stage 0 — Firebase App Distribution
