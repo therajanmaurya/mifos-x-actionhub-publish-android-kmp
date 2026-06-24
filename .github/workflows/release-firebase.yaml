@@ -83,6 +83,7 @@ jobs:
         env:
           google_services:         ${{ secrets.google_services }}
           firebase_creds:          ${{ secrets.firebase_creds }}
+          firebase_android_app_id: ${{ secrets.firebase_android_app_id }}
           upload_keystore:         ${{ secrets.upload_keystore }}
           keystore_password:       ${{ secrets.keystore_password }}
           keystore_alias:          ${{ secrets.keystore_alias }}
@@ -95,6 +96,7 @@ jobs:
           [[ -z "${keystore_alias:-}" ]]          && MISSING+=("keystore_alias")
           [[ -z "${keystore_alias_password:-}" ]] && MISSING+=("keystore_alias_password")
           [[ -z "${firebase_creds:-}" ]]          && MISSING+=("firebase_creds")
+          [[ -z "${firebase_android_app_id:-}" ]] && MISSING+=("firebase_android_app_id")
           if [[ ${#MISSING[@]} -gt 0 ]]; then
             echo "❌ Android Firebase requires these secrets, but they are MISSING:"
             printf '   - %s\n' "${MISSING[@]}"
