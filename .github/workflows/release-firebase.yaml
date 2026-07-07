@@ -56,6 +56,23 @@ on:
         required: false
         type: string
         default: '["ubuntu-latest"]'
+      # ── Additive product flavor + build type inputs (2026-07-07) ──────────────
+      # Threaded to the UNIFIED fastlane lane `deployApkOnFirebase(flavor:, build_type:)`
+      # (aliased from the legacy `deployReleaseApkOnFirebase`/`deployDemoApkOnFirebase`
+      # names). Empty `flavor` preserves the pre-2026-07-07 behavior EXACTLY — the
+      # composite action's `release_type: prod` default is reproduced via the
+      # `${{ inputs.flavor || 'prod' }}` fallback below, so existing callers see
+      # zero change.
+      flavor:
+        description: "Product flavor / release_type routed to the unified fastlane lane (e.g. 'prod', 'demo'). Empty → back-compat 'prod'."
+        required: false
+        type: string
+        default: ''
+      build_type:
+        description: "Android build type routed to the unified fastlane lane (e.g. 'release', 'debug'). Default 'release'."
+        required: false
+        type: string
+        default: 'release'
 
     secrets:
       google_services:          { required: false }
@@ -182,7 +199,15 @@ jobs:
         uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/firebase-distribution@v2.0.12
         with:
           android_package_name:     ${{ inputs.android_package_name }}
-          release_type:             prod
+          # `release_type` was previously HARDCODED to `prod`. Now derived from
+          # `inputs.flavor` — empty → `prod` (back-compat). The composite action
+          # forwards this to the UNIFIED fastlane lane `deployApkOnFirebase(flavor:,
+          # build_type:)` (legacy `deployReleaseApkOnFirebase`/`deployDemoApkOnFirebase`
+          # are aliases). `build_type` is threaded through as a companion input so
+          # the same unified lane can target release/debug artifacts.
+          release_type:             ${{ inputs.flavor || 'prod' }}
+          flavor:                   ${{ inputs.flavor || 'prod' }}
+          build_type:               ${{ inputs.build_type }}
           mode:                     ${{ inputs.mode }}
           fastlane_cwd:             ${{ inputs.fastlane_cwd }}
           google_services:          ${{ secrets.google_services }}

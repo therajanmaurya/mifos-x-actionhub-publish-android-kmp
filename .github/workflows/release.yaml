@@ -70,6 +70,22 @@ on:
         required: false
         type: string
         default: '["ubuntu-latest"]'
+      # ── Additive product flavor + build type inputs (2026-07-07) ──────────────
+      # Threaded to the fastlane Play lanes (`deployInternal`, `promoteInternalToClosed`,
+      # `promoteInternalToBeta`, `promoteBetaToProduction`) which now accept
+      # `flavor:` and `build_type:` parameters. Empty `flavor` preserves the
+      # pre-2026-07-07 prod behavior EXACTLY — the composite actions receive
+      # `flavor: prod` via the `${{ inputs.flavor || 'prod' }}` fallback below.
+      flavor:
+        description: "Product flavor routed to the fastlane Play lanes (e.g. 'prod', 'demo'). Empty → back-compat 'prod'."
+        required: false
+        type: string
+        default: ''
+      build_type:
+        description: "Android build type routed to the fastlane Play lanes (e.g. 'release', 'debug'). Default 'release'."
+        required: false
+        type: string
+        default: 'release'
 
     secrets:
       google_services:          { required: false }
@@ -206,6 +222,10 @@ jobs:
         uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/play-store-internal@v2.0.12
         with:
           android_package_name:     ${{ inputs.android_package_name }}
+          # flavor/build_type threaded to `deployInternal(flavor:, build_type:)`.
+          # Empty `inputs.flavor` → `prod` for back-compat with pre-2026-07-07 callers.
+          flavor:                   ${{ inputs.flavor || 'prod' }}
+          build_type:               ${{ inputs.build_type }}
           mode:                     ${{ inputs.mode }}
           fastlane_cwd:             ${{ inputs.fastlane_cwd }}
           google_services:          ${{ secrets.google_services }}
@@ -245,6 +265,10 @@ jobs:
         uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-closed@v2.0.20
         with:
           android_package_name: ${{ inputs.android_package_name }}
+          # flavor/build_type threaded to `promoteInternalToClosed(flavor:, build_type:)`.
+          # Empty `inputs.flavor` → `prod` for back-compat.
+          flavor:               ${{ inputs.flavor || 'prod' }}
+          build_type:           ${{ inputs.build_type }}
           mode:                 ${{ inputs.mode }}
           fastlane_cwd:         ${{ inputs.fastlane_cwd }}
           playstore_creds:      ${{ secrets.playstore_creds }}
@@ -276,6 +300,10 @@ jobs:
         uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-beta@v2.0.12
         with:
           android_package_name: ${{ inputs.android_package_name }}
+          # flavor/build_type threaded to `promoteInternalToBeta(flavor:, build_type:)`.
+          # Empty `inputs.flavor` → `prod` for back-compat.
+          flavor:               ${{ inputs.flavor || 'prod' }}
+          build_type:           ${{ inputs.build_type }}
           mode:                 ${{ inputs.mode }}
           fastlane_cwd:         ${{ inputs.fastlane_cwd }}
           playstore_creds:      ${{ secrets.playstore_creds }}
@@ -307,6 +335,10 @@ jobs:
         uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-production@v2.0.12
         with:
           android_package_name: ${{ inputs.android_package_name }}
+          # flavor/build_type threaded to `promoteBetaToProduction(flavor:, build_type:)`.
+          # Empty `inputs.flavor` → `prod` for back-compat.
+          flavor:               ${{ inputs.flavor || 'prod' }}
+          build_type:           ${{ inputs.build_type }}
           mode:                 ${{ inputs.mode }}
           fastlane_cwd:         ${{ inputs.fastlane_cwd }}
           playstore_creds:      ${{ secrets.playstore_creds }}
