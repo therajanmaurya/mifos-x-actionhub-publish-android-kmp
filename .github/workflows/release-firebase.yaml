@@ -217,3 +217,11 @@ jobs:
           keystore_alias:           ${{ secrets.keystore_alias }}
           keystore_alias_password:  ${{ secrets.keystore_alias_password }}
           tester_groups:            ${{ inputs.tester_groups }}
+
+      - name: Upload APK as release asset
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-asset-android-apk
+          path: '**/build/outputs/apk/**/*.apk'
+          if-no-files-found: warn

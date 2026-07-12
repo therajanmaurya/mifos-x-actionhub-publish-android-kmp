@@ -235,6 +235,14 @@ jobs:
           keystore_alias:           ${{ secrets.keystore_alias }}
           keystore_alias_password:  ${{ secrets.keystore_alias_password }}
 
+      - name: Upload AAB as release asset
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-asset-android-aab
+          path: '**/build/outputs/bundle/**/*.aab'
+          if-no-files-found: warn
+
   stage-1b-play-closed:
     name: Stage 1b — Promote to Closed/Alpha (approval required, no rebuild)
     needs: [stage-1-play-internal]
