@@ -98,7 +98,7 @@ jobs:
   # Preflight: validate the secrets Firebase needs. Runs in BOTH modes — secret
   # verification is NEVER skipped (user mandate 2026-06-22 "always verify, never skip").
   validate-secrets:
-    name: Preflight · Validate required secrets
+    name: Preflight · Secrets
     runs-on: ${{ fromJSON(inputs.runner_pool) }}
     steps:
       - name: Check android firebase secrets
@@ -171,7 +171,7 @@ jobs:
           fi
 
   stage-0-firebase:
-    name: Stage 0 — Firebase App Distribution
+    name: Firebase
     needs: [validate-secrets]
     # No rung gate — this workflow IS the firebase channel, so Stage 0 always runs.
     if: ${{ always() && !failure() && !cancelled() }}
