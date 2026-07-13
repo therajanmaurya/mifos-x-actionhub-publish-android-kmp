@@ -171,7 +171,7 @@ jobs:
           fi
 
   stage-0-firebase:
-    name: Firebase
+    name: Stage 0 · Firebase
     needs: [validate-secrets]
     # No rung gate — this workflow IS the firebase channel, so Stage 0 always runs.
     if: ${{ always() && !failure() && !cancelled() }}
