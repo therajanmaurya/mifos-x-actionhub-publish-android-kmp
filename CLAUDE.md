@@ -67,7 +67,7 @@ After merging a change:
 | `upload_keystore` | always | Base64 of upload keystore (.jks/.keystore) |
 | `keystore_password` | always | Password for the keystore file |
 | `keystore_alias` | always | Alias inside the keystore |
-| `keystore_alias_password` | always | Password for the alias |
+| `keystore_alias_password` | always | **Same value as `keystore_password`.** A PKCS12 keystore (keytool's default) has no separate key password — keytool discards `-keypass` at creation — so callers may omit this and it defaults from `keystore_password`. Never set it to a *different* value or to `""`: both fail signing with `key associated with <alias> not a private key`. |
 | `firebase_creds` | firebase rung | Base64 of Firebase App Distribution service-account JSON |
 | `playstore_creds` | internal/beta/production rungs | Base64 of Play Store service-account JSON |
 
