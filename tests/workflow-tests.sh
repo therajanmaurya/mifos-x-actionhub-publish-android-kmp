@@ -122,10 +122,13 @@ import yaml
 d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
 assert d[\"jobs\"][\"stage-0-firebase\"][\"needs\"] == [\"validate-secrets\"]
 '"
-run_test "T15: stage-1 depends on stage-0 (sequential ladder)" "py '
+# stage-1 gates on the PREFLIGHT as well as stage-0 — validate-secrets was added to `needs` so a
+# missing credential fails before the Play upload, not during it. The assertion previously pinned
+# the pre-preflight list and went red on dev itself.
+run_test "T15: stage-1 depends on validate-secrets + stage-0 (sequential ladder)" "py '
 import yaml
 d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
-assert d[\"jobs\"][\"stage-1-play-internal\"][\"needs\"] == [\"stage-0-firebase\"]
+assert sorted(d[\"jobs\"][\"stage-1-play-internal\"][\"needs\"]) == [\"stage-0-firebase\",\"validate-secrets\"]
 '"
 run_test "T16: stage-2 depends on stage-1" "py '
 import yaml
@@ -236,12 +239,17 @@ echo
 
 # ── Tier 8: Rung-conditional logic ───────────────────────────────────────────
 echo "── Tier 8: Rung-conditional logic ──"
-run_test "T39: stage-0-firebase if covers {firebase, internal, beta, production}" "py '
+# Stage 0 gates on the `firebase` rung ONLY. It previously ran for every rung, which duplicated
+# Firebase distribution whenever the orchestrator ALSO invoked its separate android-firebase job
+# (narrowed 2026-06-19 — see the comment above the `if:` in release.yaml). The old assertion
+# demanded the buggy broad condition, so it went red against the fix.
+run_test "T39: stage-0-firebase if gates on the firebase rung only (no duplicate distribution)" "py '
 import yaml
 d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
 cond = d[\"jobs\"][\"stage-0-firebase\"][\"if\"]
-for r in [\"firebase\",\"internal\",\"beta\",\"production\"]:
-    assert r in cond, r + \" not in stage-0 if-condition: \" + cond
+assert \"firebase\" in cond, \"firebase not in stage-0 if-condition: \" + cond
+for r in [\"internal\",\"beta\",\"production\"]:
+    assert r not in cond, r + \" must NOT gate stage-0 (duplicate-distribution regression): \" + cond
 '"
 run_test "T40: stage-1-play-internal if covers {internal, beta, production}" "py '
 import yaml
