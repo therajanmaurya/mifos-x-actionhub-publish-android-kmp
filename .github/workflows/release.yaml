@@ -127,14 +127,21 @@ jobs:
           upload_keystore:         ${{ secrets.upload_keystore }}
           keystore_password:       ${{ secrets.keystore_password }}
           keystore_alias:          ${{ secrets.keystore_alias }}
-          keystore_alias_password: ${{ secrets.keystore_alias_password }}
+          keystore_alias_password: ${{ secrets.keystore_alias_password || secrets.keystore_password }}
         run: |
           MISSING=()
           [[ -z "${google_services:-}" ]]         && MISSING+=("google_services")
           [[ -z "${upload_keystore:-}" ]]         && MISSING+=("upload_keystore")
           [[ -z "${keystore_password:-}" ]]       && MISSING+=("keystore_password")
           [[ -z "${keystore_alias:-}" ]]          && MISSING+=("keystore_alias")
-          [[ -z "${keystore_alias_password:-}" ]] && MISSING+=("keystore_alias_password")
+          # PKCS12 keystores (keytool's default) have NO separate key password — keytool discards
+          # `-keypass` at creation — so this is the SAME credential as keystore_password and is
+          # defaulted from it above. Requiring it independently rejected correctly-provisioned
+          # single-password keystores. Still checked for emptiness, because an EMPTY key password
+          # FAILS signing ("key associated with <alias> not a private key") rather than being
+          # ignored — but keystore_password satisfies it.
+          [[ -z "${keystore_alias_password:-}" && -z "${keystore_password:-}" ]] \
+            && MISSING+=("keystore_alias_password (or keystore_password)")
           [[ "${{ inputs.starting_rung }}" =~ ^(internal|beta|production)$ ]] && [[ -z "${playstore_creds:-}" ]] && MISSING+=("playstore_creds")
           if [[ ${#MISSING[@]} -gt 0 ]]; then
             echo "❌ Android ladder→${{ inputs.starting_rung }} requires these secrets, but they are MISSING:"
@@ -206,7 +213,7 @@ jobs:
       UPLOAD_KEYSTORE_B64:     ${{ secrets.upload_keystore }}
       KEYSTORE_PASSWORD:       ${{ secrets.keystore_password }}
       KEYSTORE_ALIAS:          ${{ secrets.keystore_alias }}
-      KEYSTORE_ALIAS_PASSWORD: ${{ secrets.keystore_alias_password }}
+      KEYSTORE_ALIAS_PASSWORD: ${{ secrets.keystore_alias_password || secrets.keystore_password }}
       GOOGLE_SERVICES_B64:     ${{ secrets.google_services }}
       FIREBASE_CREDS_B64:      ${{ secrets.firebase_creds }}
       PLAYSTORE_CREDS_B64:     ${{ secrets.playstore_creds }}
@@ -233,7 +240,7 @@ jobs:
           keystore_file:            ${{ secrets.upload_keystore }}
           keystore_password:        ${{ secrets.keystore_password }}
           keystore_alias:           ${{ secrets.keystore_alias }}
-          keystore_alias_password:  ${{ secrets.keystore_alias_password }}
+          keystore_alias_password:  ${{ secrets.keystore_alias_password || secrets.keystore_password }}
 
       - name: Upload AAB as release asset
         if: ${{ always() }}
@@ -257,7 +264,7 @@ jobs:
       UPLOAD_KEYSTORE_B64:     ${{ secrets.upload_keystore }}
       KEYSTORE_PASSWORD:       ${{ secrets.keystore_password }}
       KEYSTORE_ALIAS:          ${{ secrets.keystore_alias }}
-      KEYSTORE_ALIAS_PASSWORD: ${{ secrets.keystore_alias_password }}
+      KEYSTORE_ALIAS_PASSWORD: ${{ secrets.keystore_alias_password || secrets.keystore_password }}
       GOOGLE_SERVICES_B64:     ${{ secrets.google_services }}
       FIREBASE_CREDS_B64:      ${{ secrets.firebase_creds }}
       PLAYSTORE_CREDS_B64:     ${{ secrets.playstore_creds }}
@@ -292,7 +299,7 @@ jobs:
       UPLOAD_KEYSTORE_B64:     ${{ secrets.upload_keystore }}
       KEYSTORE_PASSWORD:       ${{ secrets.keystore_password }}
       KEYSTORE_ALIAS:          ${{ secrets.keystore_alias }}
-      KEYSTORE_ALIAS_PASSWORD: ${{ secrets.keystore_alias_password }}
+      KEYSTORE_ALIAS_PASSWORD: ${{ secrets.keystore_alias_password || secrets.keystore_password }}
       GOOGLE_SERVICES_B64:     ${{ secrets.google_services }}
       FIREBASE_CREDS_B64:      ${{ secrets.firebase_creds }}
       PLAYSTORE_CREDS_B64:     ${{ secrets.playstore_creds }}
@@ -327,7 +334,7 @@ jobs:
       UPLOAD_KEYSTORE_B64:     ${{ secrets.upload_keystore }}
       KEYSTORE_PASSWORD:       ${{ secrets.keystore_password }}
       KEYSTORE_ALIAS:          ${{ secrets.keystore_alias }}
-      KEYSTORE_ALIAS_PASSWORD: ${{ secrets.keystore_alias_password }}
+      KEYSTORE_ALIAS_PASSWORD: ${{ secrets.keystore_alias_password || secrets.keystore_password }}
       GOOGLE_SERVICES_B64:     ${{ secrets.google_services }}
       FIREBASE_CREDS_B64:      ${{ secrets.firebase_creds }}
       PLAYSTORE_CREDS_B64:     ${{ secrets.playstore_creds }}
