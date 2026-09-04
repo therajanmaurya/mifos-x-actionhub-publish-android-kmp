@@ -28,6 +28,18 @@ inputs:
     default: '0.10'
     description: 'Initial rollout percentage (0.0-1.0). Default 0.10 = 10% staged rollout.'
 
+  # Threaded from release.yaml (2026-07-07, kmp-product-flavors). Declared here so the
+  # workflow's `with:` block is a VALID input contract — release.yaml passed these before the
+  # actions accepted them, which the T45 input-contract assertion correctly flagged.
+  flavor:
+    required: false
+    default: 'prod'
+    description: "Product flavor for the fastlane Play lane (e.g. 'prod', 'demo')."
+  build_type:
+    required: false
+    default: 'release'
+    description: "Android build type for the fastlane Play lane (e.g. 'release')."
+
 runs:
   using: 'composite'
   steps:

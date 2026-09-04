@@ -48,7 +48,7 @@ py() { python3 -c "$1"; }
 # Constants
 # ─────────────────────────────────────────────────────────────────────────────
 ACTIONS=(firebase-distribution play-store-internal promote-to-beta promote-to-production)
-EXPECTED_JOBS=(validate-secrets stage-0-firebase stage-1-play-internal stage-2-promote-to-beta stage-3-promote-to-production)
+EXPECTED_JOBS=(validate-secrets validate-store-listing stage-1-play-internal stage-1b-play-closed stage-2-promote-to-beta stage-3-promote-to-production)
 
 echo "════════════════════════════════════════════════════════════════════════════"
 echo "  Workflow E2E tests for mifos-x-actionhub-publish-android-kmp"
@@ -110,27 +110,33 @@ echo
 
 # ── Tier 3: Job structure ────────────────────────────────────────────────────
 echo "── Tier 3: Job structure ──"
-run_test "T13: All 5 expected jobs present" "py '
+# Firebase is NOT a job here. The 2026-06-22 split (commit a92b434) moved App Distribution to
+# its own reusable workflow, release-firebase.yaml, so firebase ∥ play run independently — see
+# the header comment in release.yaml. These assertions previously pinned the PRE-split ladder and
+# failed on every branch that carried the split, which is a stale test, not a broken workflow.
+run_test "T13: All 6 expected jobs present" "py '
 import yaml
 d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
 got = set(d[\"jobs\"].keys())
-exp = set([\"validate-secrets\",\"stage-0-firebase\",\"stage-1-play-internal\",\"stage-2-promote-to-beta\",\"stage-3-promote-to-production\"])
+exp = set([\"validate-secrets\",\"validate-store-listing\",\"stage-1-play-internal\",\"stage-1b-play-closed\",\"stage-2-promote-to-beta\",\"stage-3-promote-to-production\"])
 assert got == exp, \"diff: \" + str(got.symmetric_difference(exp))
 '"
-run_test "T14: stage-0 depends on validate-secrets" "py '
+run_test "T14: stage-1 depends on both preflights" "py '
 import yaml
 d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
-assert d[\"jobs\"][\"stage-0-firebase\"][\"needs\"] == [\"validate-secrets\"]
+assert sorted(d[\"jobs\"][\"stage-1-play-internal\"][\"needs\"]) == [\"validate-secrets\",\"validate-store-listing\"]
 '"
-run_test "T15: stage-1 depends on stage-0 (sequential ladder)" "py '
+run_test "T15: preflight jobs are ladder roots (no needs)" "py '
 import yaml
 d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
-assert d[\"jobs\"][\"stage-1-play-internal\"][\"needs\"] == [\"stage-0-firebase\"]
+for j in (\"validate-secrets\",\"validate-store-listing\"):
+    assert \"needs\" not in d[\"jobs\"][j], j + \" must be a root\"
 '"
-run_test "T16: stage-2 depends on stage-1" "py '
+run_test "T16: closed rung sits between internal and beta" "py '
 import yaml
 d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
-assert d[\"jobs\"][\"stage-2-promote-to-beta\"][\"needs\"] == [\"stage-1-play-internal\"]
+assert d[\"jobs\"][\"stage-1b-play-closed\"][\"needs\"] == [\"stage-1-play-internal\"]
+assert d[\"jobs\"][\"stage-2-promote-to-beta\"][\"needs\"] == [\"stage-1b-play-closed\"]
 '"
 run_test "T17: stage-3 depends on stage-2" "py '
 import yaml
@@ -145,11 +151,16 @@ echo
 # broke v2.0.6 + v2.0.7 fixes when release.yaml was tagged but composite refs
 # weren't bumped.)
 echo "── Tier 4: Per-stage composite-action routing ──"
-run_test "T18: stage-0 routes to firebase-distribution composite action" "py '
-import yaml
-d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
-uses = [s[\"uses\"] for s in d[\"jobs\"][\"stage-0-firebase\"][\"steps\"] if isinstance(s,dict) and \"publish-android-kmp/\" in str(s.get(\"uses\",\"\"))]
-assert len(uses) == 1 and \"/firebase-distribution@\" in uses[0], \"got: \" + str(uses)
+# firebase-distribution routing now belongs to release-firebase.yaml (2026-06-22 split), so it is
+# asserted against THAT file rather than dropped — the routing still needs a guard, just not here.
+run_test "T18: release-firebase.yaml routes to firebase-distribution composite action" "py '
+import os, yaml
+p = \".github/workflows/release-firebase.yaml\"
+if not os.path.exists(p):
+    raise SystemExit(0)
+d = yaml.safe_load(open(p))
+uses = [s[\"uses\"] for j in d[\"jobs\"].values() for s in j.get(\"steps\",[]) if isinstance(s,dict) and \"publish-android-kmp/\" in str(s.get(\"uses\",\"\"))]
+assert any(\"/firebase-distribution@\" in u for u in uses), \"got: \" + str(uses)
 '"
 run_test "T19: stage-1 routes to play-store-internal composite action" "py '
 import yaml
@@ -236,12 +247,14 @@ echo
 
 # ── Tier 8: Rung-conditional logic ───────────────────────────────────────────
 echo "── Tier 8: Rung-conditional logic ──"
-run_test "T39: stage-0-firebase if covers {firebase, internal, beta, production}" "py '
+# Post-split, the closed rung is the one that has to gate on the rungs ABOVE it, and firebase is
+# no longer a rung in this file at all (release-firebase.yaml owns it).
+run_test "T39: stage-1b-play-closed if covers {closed, beta, production}" "py '
 import yaml
 d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
-cond = d[\"jobs\"][\"stage-0-firebase\"][\"if\"]
-for r in [\"firebase\",\"internal\",\"beta\",\"production\"]:
-    assert r in cond, r + \" not in stage-0 if-condition: \" + cond
+cond = d[\"jobs\"][\"stage-1b-play-closed\"][\"if\"]
+for r in [\"closed\",\"beta\",\"production\"]:
+    assert r in cond, r + \" not in stage-1b if-condition: \" + cond
 '"
 run_test "T40: stage-1-play-internal if covers {internal, beta, production}" "py '
 import yaml

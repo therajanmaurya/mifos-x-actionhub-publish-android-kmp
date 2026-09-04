@@ -226,7 +226,7 @@ jobs:
         run: ${{ inputs.pre_fastlane_script }}
 
       - name: Upload to Play Internal
-        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/play-store-internal@v2.0.12
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/play-store-internal@v2.0.20
         with:
           android_package_name:     ${{ inputs.android_package_name }}
           # flavor/build_type threaded to `deployInternal(flavor:, build_type:)`.
@@ -312,7 +312,7 @@ jobs:
         run: ${{ inputs.pre_fastlane_script }}
 
       - name: Promote Internal → Beta
-        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-beta@v2.0.12
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-beta@v2.0.20
         with:
           android_package_name: ${{ inputs.android_package_name }}
           # flavor/build_type threaded to `promoteInternalToBeta(flavor:, build_type:)`.
@@ -347,7 +347,7 @@ jobs:
         run: ${{ inputs.pre_fastlane_script }}
 
       - name: Promote Beta → Production (staged rollout)
-        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-production@v2.0.12
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/promote-to-production@v2.0.20
         with:
           android_package_name: ${{ inputs.android_package_name }}
           # flavor/build_type threaded to `promoteBetaToProduction(flavor:, build_type:)`.

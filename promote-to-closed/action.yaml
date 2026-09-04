@@ -24,6 +24,18 @@ inputs:
     default: ''
     description: 'Base64-encoded Play Store SA JSON. Ignored when mode=pre-materialized.'
 
+  # Threaded from release.yaml (2026-07-07, kmp-product-flavors). Declared here so the
+  # workflow's `with:` block is a VALID input contract — release.yaml passed these before the
+  # actions accepted them, which the T45 input-contract assertion correctly flagged.
+  flavor:
+    required: false
+    default: 'prod'
+    description: "Product flavor for the fastlane Play lane (e.g. 'prod', 'demo')."
+  build_type:
+    required: false
+    default: 'release'
+    description: "Android build type for the fastlane Play lane (e.g. 'release')."
+
 runs:
   using: 'composite'
   steps:
@@ -46,7 +58,7 @@ runs:
     - name: Promote Internal → Closed/Alpha (standard mode)
       if: ${{ inputs.mode == 'standard' }}
       shell: bash
-      run: bundle exec fastlane android promoteToClosed
+      run: bundle exec fastlane android promoteToClosed flavor:"${{ inputs.flavor }}" build_type:"${{ inputs.build_type }}"
 
     - name: Cleanup secrets (standard mode)
       if: ${{ always() && inputs.mode == 'standard' }}
@@ -58,4 +70,4 @@ runs:
       if: ${{ inputs.mode == 'pre-materialized' }}
       shell: bash
       working-directory: ${{ inputs.fastlane_cwd }}
-      run: bundle exec fastlane android promoteToClosed
+      run: bundle exec fastlane android promoteToClosed flavor:"${{ inputs.flavor }}" build_type:"${{ inputs.build_type }}"
