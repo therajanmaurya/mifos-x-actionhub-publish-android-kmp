@@ -4,14 +4,20 @@
 # composite invocation. Catches: invalid yaml, missing required inputs,
 # malformed runs.steps, undefined ${{ inputs.* }} refs.
 #
-# Runs on every PR + push to main. Required to pass before merge.
+# Runs on every PR + push to main AND dev. Required to pass before merge.
+#
+# `dev` is gated too (added 2026-09-04). It was previously unwatched, so the five commits that
+# reached dev ahead of main — including the Stage-0 firebase narrowing and the validate-secrets
+# hardening — were never CI-tested, and the assertions they invalidated sat red on dev unnoticed
+# while PRs into dev reported no checks at all (an empty rollup reads as "clean", not "not run").
+# An integration branch that never runs its own suite is a blind spot, not a shortcut.
 name: PR Check
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   push:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
   actionlint:
