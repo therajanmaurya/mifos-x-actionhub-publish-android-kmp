@@ -85,6 +85,7 @@ runs:
         KEYSTORE_PASSWORD: ${{ inputs.keystore_password }}
         KEYSTORE_ALIAS: ${{ inputs.keystore_alias }}
         KEYSTORE_ALIAS_PASSWORD: ${{ inputs.keystore_alias_password }}
+      working-directory: ${{ inputs.fastlane_cwd }}
       run: |
         bundle exec fastlane android deployInternal \
           storeFile:upload_keystore.keystore \

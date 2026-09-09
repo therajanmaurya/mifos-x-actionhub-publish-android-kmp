@@ -46,6 +46,7 @@ runs:
     - name: Promote Internal → Beta (standard mode)
       if: ${{ inputs.mode == 'standard' }}
       shell: bash
+      working-directory: ${{ inputs.fastlane_cwd }}
       run: bundle exec fastlane android promoteToBeta
 
     - name: Cleanup secrets (standard mode)

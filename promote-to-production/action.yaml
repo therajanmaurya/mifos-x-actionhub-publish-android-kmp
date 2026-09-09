@@ -52,6 +52,7 @@ runs:
       shell: bash
       env:
         ROLLOUT: ${{ inputs.rollout }}
+      working-directory: ${{ inputs.fastlane_cwd }}
       run: |
         bundle exec fastlane android promote_to_production \
           rollout:"$ROLLOUT"
