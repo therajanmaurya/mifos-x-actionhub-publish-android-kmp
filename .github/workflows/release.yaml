@@ -155,7 +155,7 @@ jobs:
       FIREBASE_ANDROID_APP_ID:      ${{ secrets.firebase_android_app_id }}
       FIREBASE_ANDROID_DEMO_APP_ID: ${{ secrets.firebase_android_demo_app_id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Pre-fastlane setup (consumer-provided, pre-materialized mode)
         if: ${{ inputs.mode == 'pre-materialized' && inputs.pre_fastlane_script != '' }}
@@ -194,7 +194,7 @@ jobs:
       FIREBASE_CREDS_B64:      ${{ secrets.firebase_creds }}
       PLAYSTORE_CREDS_B64:     ${{ secrets.playstore_creds }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Pre-fastlane setup (consumer-provided, pre-materialized mode)
         if: ${{ inputs.mode == 'pre-materialized' && inputs.pre_fastlane_script != '' }}
@@ -230,7 +230,7 @@ jobs:
       FIREBASE_CREDS_B64:      ${{ secrets.firebase_creds }}
       PLAYSTORE_CREDS_B64:     ${{ secrets.playstore_creds }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Pre-fastlane setup (consumer-provided, pre-materialized mode)
         if: ${{ inputs.mode == 'pre-materialized' && inputs.pre_fastlane_script != '' }}
@@ -261,7 +261,7 @@ jobs:
       FIREBASE_CREDS_B64:      ${{ secrets.firebase_creds }}
       PLAYSTORE_CREDS_B64:     ${{ secrets.playstore_creds }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Pre-fastlane setup (consumer-provided, pre-materialized mode)
         if: ${{ inputs.mode == 'pre-materialized' && inputs.pre_fastlane_script != '' }}

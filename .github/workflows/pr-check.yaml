@@ -24,7 +24,7 @@ jobs:
     name: actionlint — every action.yaml
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Run actionlint on every action.yaml
         uses: docker://rhysd/actionlint:1.7.4
         with:
@@ -43,7 +43,7 @@ jobs:
           - promote-to-beta
           - promote-to-production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Verify action.yaml exists + parseable
         run: |
           set -euo pipefail
@@ -58,7 +58,7 @@ jobs:
     name: Shellcheck _shared/scripts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Shellcheck every .sh
         run: |
           set -euo pipefail
@@ -68,7 +68,7 @@ jobs:
     name: Workflow E2E tests (45 assertions)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install actionlint
         run: |
           bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.4
