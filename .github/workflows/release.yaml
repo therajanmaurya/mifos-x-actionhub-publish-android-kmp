@@ -63,10 +63,10 @@ on:
         type: string
         default: ''
       runner_pool:
-        description: 'JSON array of runner labels for runs-on. Default `["ubuntu-latest"]` (hosted). Pass `["self-hosted","macOS"]` to dispatch on a local self-hosted runner.'
+        description: 'JSON array of runner labels for runs-on. Default `["ubuntu-26.04"]` (hosted). Pass `["self-hosted","macOS"]` to dispatch on a local self-hosted runner.'
         required: false
         type: string
-        default: '["ubuntu-latest"]'
+        default: '["ubuntu-26.04"]'
 
     secrets:
       google_services:          { required: false }
