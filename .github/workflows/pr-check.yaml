@@ -22,7 +22,7 @@ on:
 jobs:
   actionlint:
     name: actionlint — every action.yaml
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.CI_RUNNER_LINUX || 'ubuntu-26.04' }}
     steps:
       - uses: actions/checkout@v5
       - name: Run actionlint on every action.yaml
@@ -32,7 +32,7 @@ jobs:
 
   validate-sub-actions:
     name: Validate sub-action ${{ matrix.subdir }}
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.CI_RUNNER_LINUX || 'ubuntu-26.04' }}
     strategy:
       fail-fast: false
       matrix:
@@ -56,7 +56,7 @@ jobs:
 
   validate-shared-scripts:
     name: Shellcheck _shared/scripts
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.CI_RUNNER_LINUX || 'ubuntu-26.04' }}
     steps:
       - uses: actions/checkout@v5
       - name: Shellcheck every .sh
@@ -66,7 +66,7 @@ jobs:
 
   workflow-tests:
     name: Workflow E2E tests (45 assertions)
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.CI_RUNNER_LINUX || 'ubuntu-26.04' }}
     steps:
       - uses: actions/checkout@v5
       - name: Install actionlint
