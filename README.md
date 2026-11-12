@@ -42,7 +42,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 

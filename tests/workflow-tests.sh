@@ -110,30 +110,33 @@ echo
 
 # ── Tier 3: Job structure ────────────────────────────────────────────────────
 echo "── Tier 3: Job structure ──"
-run_test "T13: All 5 expected jobs present" "py '
+# Firebase App Distribution is its own workflow (release-firebase.yaml) since the firebase ∥ play
+# split: release.yaml is the Play ladder only, with a closed rung between internal and beta.
+run_test "T13: Play ladder jobs present (Firebase lives in release-firebase.yaml)" "py '
 import yaml
 d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
 got = set(d[\"jobs\"].keys())
-exp = set([\"validate-secrets\",\"stage-0-firebase\",\"stage-1-play-internal\",\"stage-2-promote-to-beta\",\"stage-3-promote-to-production\"])
+exp = set([\"validate-secrets\",\"validate-store-listing\",\"stage-1-play-internal\",\"stage-1b-play-closed\",\"stage-2-promote-to-beta\",\"stage-3-promote-to-production\"])
 assert got == exp, \"diff: \" + str(got.symmetric_difference(exp))
 '"
-run_test "T14: stage-0 depends on validate-secrets" "py '
+run_test "T14: stage-0 (release-firebase.yaml) depends on validate-secrets" "py '
 import yaml
-d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
+d = yaml.safe_load(open(\".github/workflows/release-firebase.yaml\"))
 assert d[\"jobs\"][\"stage-0-firebase\"][\"needs\"] == [\"validate-secrets\"]
 '"
 # stage-1 gates on the PREFLIGHT as well as stage-0 — validate-secrets was added to `needs` so a
 # missing credential fails before the Play upload, not during it. The assertion previously pinned
 # the pre-preflight list and went red on dev itself.
-run_test "T15: stage-1 depends on validate-secrets + stage-0 (sequential ladder)" "py '
+run_test "T15: stage-1 depends on both preflights (secrets + store listing)" "py '
 import yaml
 d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
-assert sorted(d[\"jobs\"][\"stage-1-play-internal\"][\"needs\"]) == [\"stage-0-firebase\",\"validate-secrets\"]
+assert sorted(d[\"jobs\"][\"stage-1-play-internal\"][\"needs\"]) == [\"validate-secrets\",\"validate-store-listing\"]
 '"
-run_test "T16: stage-2 depends on stage-1" "py '
+run_test "T16: stage-2 depends on the closed rung, which depends on stage-1" "py '
 import yaml
 d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
-assert d[\"jobs\"][\"stage-2-promote-to-beta\"][\"needs\"] == [\"stage-1-play-internal\"]
+assert d[\"jobs\"][\"stage-1b-play-closed\"][\"needs\"] == [\"stage-1-play-internal\"]
+assert d[\"jobs\"][\"stage-2-promote-to-beta\"][\"needs\"] == [\"stage-1b-play-closed\"]
 '"
 run_test "T17: stage-3 depends on stage-2" "py '
 import yaml
@@ -148,9 +151,9 @@ echo
 # broke v2.0.6 + v2.0.7 fixes when release.yaml was tagged but composite refs
 # weren't bumped.)
 echo "── Tier 4: Per-stage composite-action routing ──"
-run_test "T18: stage-0 routes to firebase-distribution composite action" "py '
+run_test "T18: stage-0 (release-firebase.yaml) routes to firebase-distribution composite action" "py '
 import yaml
-d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
+d = yaml.safe_load(open(\".github/workflows/release-firebase.yaml\"))
 uses = [s[\"uses\"] for s in d[\"jobs\"][\"stage-0-firebase\"][\"steps\"] if isinstance(s,dict) and \"publish-android-kmp/\" in str(s.get(\"uses\",\"\"))]
 assert len(uses) == 1 and \"/firebase-distribution@\" in uses[0], \"got: \" + str(uses)
 '"
@@ -243,13 +246,12 @@ echo "── Tier 8: Rung-conditional logic ──"
 # Firebase distribution whenever the orchestrator ALSO invoked its separate android-firebase job
 # (narrowed 2026-06-19 — see the comment above the `if:` in release.yaml). The old assertion
 # demanded the buggy broad condition, so it went red against the fix.
-run_test "T39: stage-0-firebase if gates on the firebase rung only (no duplicate distribution)" "py '
+run_test "T39: no Firebase distribution in the Play ladder (no duplicate distribution)" "py '
 import yaml
 d = yaml.safe_load(open(\".github/workflows/release.yaml\"))
-cond = d[\"jobs\"][\"stage-0-firebase\"][\"if\"]
-assert \"firebase\" in cond, \"firebase not in stage-0 if-condition: \" + cond
-for r in [\"internal\",\"beta\",\"production\"]:
-    assert r not in cond, r + \" must NOT gate stage-0 (duplicate-distribution regression): \" + cond
+for j, v in d[\"jobs\"].items():
+    for s in v.get(\"steps\", []):
+        assert \"/firebase-distribution@\" not in str(s.get(\"uses\", \"\")), j + \" distributes to Firebase — that is release-firebase.yaml only\"
 '"
 run_test "T40: stage-1-play-internal if covers {internal, beta, production}" "py '
 import yaml
