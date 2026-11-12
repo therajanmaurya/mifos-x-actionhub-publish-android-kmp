@@ -40,6 +40,7 @@ jobs:
           - build
           - firebase-distribution
           - play-store-internal
+          - promote-to-closed
           - promote-to-beta
           - promote-to-production
     steps:
@@ -65,7 +66,7 @@ jobs:
           find _shared/scripts -name '*.sh' -exec shellcheck -S warning {} +
 
   workflow-tests:
-    name: Workflow E2E tests (45 assertions)
+    name: Workflow E2E tests (49 assertions)
     runs-on: ${{ vars.CI_RUNNER_LINUX || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v5
