@@ -196,7 +196,7 @@ jobs:
         run: ${{ inputs.pre_fastlane_script }}
 
       - name: Publish to Firebase
-        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/firebase-distribution@v2.0.31
+        uses: therajanmaurya/mifos-x-actionhub-publish-android-kmp/firebase-distribution@v2.0.32
         with:
           android_package_name:     ${{ inputs.android_package_name }}
           # `release_type` was previously HARDCODED to `prod`. Now derived from
